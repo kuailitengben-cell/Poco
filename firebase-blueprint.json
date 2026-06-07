@@ -1,0 +1,427 @@
+{
+  "entities": {
+    "Scene": {
+      "title": "Scene",
+      "description": "A relatable everyday moment",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "Relatable title" },
+        "content": { "type": "string", "description": "Scene description" },
+        "imageUrl": { "type": "string", "description": "Optional image attached to the scene" },
+        "authorId": { "type": "string", "description": "User ID of the creator" },
+        "authorName": { "type": "string", "description": "Display name of the creator" },
+        "authorPhoto": { "type": "string", "description": "Avatar URL of the creator" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "upvotes": { "type": "number" },
+        "category": { "type": "string", "enum": ["Everyday", "Work", "School", "Relationship", "Food", "Other"] },
+        "hashtags": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["title", "content", "authorId", "createdAt", "upvotes"]
+    },
+    "Follow": {
+      "title": "Follow",
+      "description": "User follow relationship",
+      "type": "object",
+      "properties": {
+        "followerId": { "type": "string" },
+        "followingId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["followerId", "followingId", "createdAt"]
+    },
+    "Chat": {
+      "title": "Chat",
+      "description": "A private conversation",
+      "type": "object",
+      "properties": {
+        "participants": { "type": "array", "items": { "type": "string" } },
+        "lastMessage": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["participants", "updatedAt"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "A message in a chat",
+      "type": "object",
+      "properties": {
+        "chatId": { "type": "string" },
+        "senderId": { "type": "string" },
+        "content": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "read": { "type": "boolean" }
+      },
+      "required": ["chatId", "senderId", "content", "createdAt", "read"]
+    },
+    "Comment": {
+      "title": "Comment",
+      "description": "A comment on a scene",
+      "type": "object",
+      "properties": {
+        "sceneId": { "type": "string" },
+        "authorId": { "type": "string" },
+        "authorName": { "type": "string" },
+        "authorPhoto": { "type": "string" },
+        "content": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["sceneId", "authorId", "content", "createdAt"]
+    },
+    "Upvote": {
+      "title": "Upvote",
+      "description": "An upvote record to prevent duplicates",
+      "type": "object",
+      "properties": {
+        "sceneId": { "type": "string" },
+        "userId": { "type": "string" }
+      },
+      "required": ["sceneId", "userId"]
+    },
+    "Profile": {
+      "title": "Profile",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "bio": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "lastActiveAt": { "type": "string", "format": "date-time" },
+        "isBanned": { "type": "boolean" },
+        "lastReadAnnouncementId": { "type": "string" },
+        "selectedTitle": { "type": "string" },
+        "equippedBadges": { "type": "array", "items": { "type": "string" } },
+        "postsCount": { "type": "number" },
+        "deletedPostsCount": { "type": "number" },
+        "loginStreak": { "type": "number" },
+        "lastLoginDate": { "type": "string" },
+        "totalLoginDays": { "type": "number" },
+        "viewsCount": { "type": "number" },
+        "upvotesReceived": { "type": "number" },
+        "maxUpvotesOnSinglePost": { "type": "number" },
+        "midnightPostsCount": { "type": "number" },
+        "commentRate": { "type": "number" },
+        "weekdayDaytimePostsCount": { "type": "number" },
+        "midnightActiveStreak": { "type": "number" },
+        "commentsBlockedCount": { "type": "number" },
+        "gachaWon": { "type": "boolean" },
+        "returnedAfter30Days": { "type": "boolean" },
+        "opsSecret": { "type": "boolean" },
+        "myCommentsCount": { "type": "number" },
+        "isTopPercentile": { "type": "boolean" },
+        "registeredAt": { "type": "string", "format": "date-time" },
+        "midnightViewsCount": { "type": "number" },
+        "unlockedPrefixIds": { "type": "array", "items": { "type": "string" } },
+        "unlockedSuffixIds": { "type": "array", "items": { "type": "string" } },
+        "unlockedBadgeIds": { "type": "array", "items": { "type": "string" } },
+        "celebratedBadgeIds": { "type": "array", "items": { "type": "string" } },
+        "celebratedPrefixIds": { "type": "array", "items": { "type": "string" } },
+        "celebratedSuffixIds": { "type": "array", "items": { "type": "string" } },
+        "coins": { "type": "number" },
+        "shards": { "type": "number" }
+      },
+      "required": ["displayName", "photoURL", "bio", "updatedAt"]
+    },
+    "Announcement": {
+      "title": "Announcement",
+      "description": "System-wide announcement from admin",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "authorId": { "type": "string" }
+      },
+      "required": ["title", "content", "createdAt", "authorId"]
+    },
+    "Report": {
+      "title": "Report",
+      "description": "User report for a scene or profile",
+      "type": "object",
+      "properties": {
+        "reporterId": { "type": "string" },
+        "targetId": { "type": "string" },
+        "targetType": { "type": "string", "enum": ["scene", "profile"] },
+        "reason": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["reporterId", "targetId", "targetType", "reason", "createdAt"]
+    },
+    "AdminMessage": {
+      "title": "AdminMessage",
+      "description": "Special message from admin to user",
+      "type": "object",
+      "properties": {
+        "recipientId": { "type": "string" },
+        "senderId": { "type": "string" },
+        "content": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "read": { "type": "boolean" }
+      },
+      "required": ["recipientId", "senderId", "content", "createdAt", "read"]
+    },
+    "RankingRewardSetting": {
+      "title": "RankingRewardSetting",
+      "description": "Ranking rewards settings config",
+      "type": "object",
+      "properties": {
+        "rank1Coins": { "type": "number" },
+        "rank2Coins": { "type": "number" },
+        "rank3Coins": { "type": "number" },
+        "rank4to5Coins": { "type": "number" },
+        "endDate": { "type": "string" }
+      },
+      "required": ["rank1Coins", "rank2Coins", "rank3Coins", "rank4to5Coins", "endDate"]
+    },
+    "GachaPool": {
+      "title": "GachaPool",
+      "description": "Custom administrator-defined Gacha pools/campaigns",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "cost1": { "type": "number" },
+        "cost10": { "type": "number" },
+        "active": { "type": "boolean" },
+        "rates": {
+          "type": "object",
+          "properties": {
+            "common": { "type": "number" },
+            "uncommon": { "type": "number" },
+            "rare": { "type": "number" },
+            "epic": { "type": "number" },
+            "legendary": { "type": "number" },
+            "mythic": { "type": "number" }
+          }
+        },
+        "selectedItemIds": { "type": "array", "items": { "type": "string" } },
+        "pityLimit50": { "type": "string" },
+        "pityLimit200": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["name", "cost1", "cost10", "active", "rates"]
+    },
+    "LoginBonus": {
+      "title": "LoginBonus",
+      "description": "A configuration board for user logins, days count, and associated rewards",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "gridType": { "type": "string" },
+        "daysCount": { "type": "number" },
+        "active": { "type": "boolean" },
+        "rewards": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "day": { "type": "number" },
+              "rewardType": { "type": "string" },
+              "rewardValue": { "type": "string" },
+              "rewardName": { "type": "string" }
+            }
+          }
+        },
+        "createdAt": { "type": "object" }
+      },
+      "required": ["name", "gridType", "daysCount", "active", "rewards", "createdAt"]
+    },
+    "LoginBonusClaim": {
+      "title": "LoginBonusClaim",
+      "description": "A user's login reward claim history tracking their progress on a specific board",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "bonusId": { "type": "string" },
+        "lastClaimDate": { "type": "string" },
+        "claimedDays": { "type": "array", "items": { "type": "number" } },
+        "updatedAt": { "type": "object" }
+      },
+      "required": ["userId", "bonusId", "lastClaimDate", "claimedDays", "updatedAt"]
+    },
+    "LegalDocument": {
+      "title": "LegalDocument",
+      "description": "Terms, Privacy Policy, or Community Guidelines",
+      "type": "object",
+      "properties": {
+        "docType": { "type": "string", "enum": ["terms", "privacy", "guidelines"] },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "termsPrivacySections": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "title": { "type": "string" },
+              "paragraphs": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        },
+        "guidelinesData": {
+          "type": "object",
+          "properties": {
+            "intro": { "type": "string" },
+            "rules": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "num": { "type": "number" },
+                  "title": { "type": "string" },
+                  "content": { "type": "string" },
+                  "bullets": { "type": "array", "items": { "type": "string" } }
+                }
+              }
+            },
+            "okExamples": { "type": "array", "items": { "type": "string" } },
+            "ngExamples": { "type": "array", "items": { "type": "string" } },
+            "closingHeadline": { "type": "string" },
+            "closingBody": { "type": "string" }
+          }
+        }
+      },
+      "required": ["docType", "updatedAt"]
+    },
+    "GiftCode": {
+      "title": "GiftCode",
+      "description": "Gift coin codes used to distribute GC",
+      "type": "object",
+      "properties": {
+        "code": { "type": "string" },
+        "creator_uid": { "type": "string" },
+        "creator_name": { "type": "string" },
+        "reward_gc": { "type": "number" },
+        "created_at": { "type": "string", "format": "date-time" },
+        "expire_at": { "type": "string", "format": "date-time" },
+        "max_uses": { "type": "number" },
+        "used_count": { "type": "number" },
+        "active": { "type": "boolean" },
+        "target_uid": { "type": "string" },
+        "campaign_name": { "type": "string" }
+      },
+      "required": ["code", "creator_uid", "reward_gc", "created_at", "expire_at", "max_uses", "used_count", "active"]
+    },
+    "GiftRedemption": {
+      "title": "GiftRedemption",
+      "description": "User redemption history to prevent duplicates and audit claims",
+      "type": "object",
+      "properties": {
+        "user_uid": { "type": "string" },
+        "code": { "type": "string" },
+        "reward_gc": { "type": "number" },
+        "redeemed_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["user_uid", "code", "reward_gc", "redeemed_at"]
+    },
+    "PlazaSurvey": {
+      "title": "PlazaSurvey",
+      "description": "A daily or custom survey posted inside Jimi Plaza for everyone to vote",
+      "type": "object",
+      "properties": {
+        "question": { "type": "string", "description": "The survey question text" },
+        "authorId": { "type": "string", "description": "The user ID of the creator" },
+        "authorName": { "type": "string", "description": "Name of the creator" },
+        "authorPhoto": { "type": "string", "description": "Photo URL of the creator" },
+        "yesVotes": { "type": "number", "description": "Number of YES votes" },
+        "noVotes": { "type": "number", "description": "Number of NO votes" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["question", "authorId", "authorName", "yesVotes", "noVotes", "createdAt"]
+    },
+    "PlazaSurveyVote": {
+      "title": "PlazaSurveyVote",
+      "description": "A user's vote on a survey",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "surveyId": { "type": "string" },
+        "choice": { "type": "string", "enum": ["yes", "no"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "surveyId", "choice", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/gift_codes/{codeId}": {
+      "schema": "GiftCode",
+      "description": "Gift codes for coin distribution"
+    },
+    "/gift_redemptions/{redemptionId}": {
+      "schema": "GiftRedemption",
+      "description": "User claim history logs for gift codes"
+    },
+    "/login_bonuses/{bonusId}": {
+      "schema": "LoginBonus",
+      "description": "Login bonus boards"
+    },
+    "/login_claims/{claimId}": {
+      "schema": "LoginBonusClaim",
+      "description": "User login bonus claims"
+    },
+    "/gacha_pools/{poolId}": {
+      "schema": "GachaPool",
+      "description": "Custom gacha campaign pools"
+    },
+    "/scenes/{sceneId}": {
+      "schema": "Scene",
+      "description": "Public scenes"
+    },
+    "/scenes/{sceneId}/comments/{commentId}": {
+      "schema": "Comment",
+      "description": "Comments for a scene"
+    },
+    "/upvotes/{upvoteId}": {
+      "schema": "Upvote",
+      "description": "Upvotes to track user interactions"
+    },
+    "/profiles/{userId}": {
+      "schema": "Profile",
+      "description": "User profiles"
+    },
+    "/follows/{followId}": {
+      "schema": "Follow",
+      "description": "Follow relationships"
+    },
+    "/chats/{chatId}": {
+      "schema": "Chat",
+      "description": "Private chats"
+    },
+    "/chats/{chatId}/messages/{messageId}": {
+      "schema": "Message",
+      "description": "Messages within a chat"
+    },
+    "/reports/{reportId}": {
+      "schema": "Report",
+      "description": "Reports submitted by users"
+    },
+    "/admin_messages/{messageId}": {
+      "schema": "AdminMessage",
+      "description": "Messages from admins to users"
+    },
+    "/announcements/{announcementId}": {
+      "schema": "Announcement",
+      "description": "System-wide announcements"
+    },
+    "/admins/{userId}": {
+      "schema": "object",
+      "description": "List of admin UIDs"
+    },
+    "/settings/{settingId}": {
+      "schema": "RankingRewardSetting",
+      "description": "Global settings configuration documents"
+    },
+    "/legal_documents/{docId}": {
+      "schema": "LegalDocument",
+      "description": "Terms, Privacy Policy, or Community Guidelines"
+    },
+    "/plaza_surveys/{surveyId}": {
+      "schema": "PlazaSurvey",
+      "description": "Surveys in Jimi Plaza"
+    },
+    "/plaza_surveys/{surveyId}/votes/{voteId}": {
+      "schema": "PlazaSurveyVote",
+      "description": "Votes cast on surveys"
+    }
+  }
+}

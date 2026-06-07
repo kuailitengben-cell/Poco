@@ -1,0 +1,8 @@
+{
+  "name": "Jimicchi (地味っち)",
+  "description": "A collection of subtly relatable everyday moments. Share, comment, and find common ground in the small things.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
