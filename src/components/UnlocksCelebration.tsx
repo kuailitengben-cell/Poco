@@ -4,6 +4,8 @@ import { Trophy, Star, Sparkles, X, Award, Flame, Crown, Zap, Target } from 'luc
 import { Badge, Title, TitlePart, getBadgeRarityStyle } from '../lib/badgeUtils';
 import { db } from '../lib/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
+import { useLanguage } from '../lib/LanguageContext';
+import { PREFIX_TRANSLATIONS, SUFFIX_TRANSLATIONS, CONDITION_TRANSLATIONS } from '../lib/titleRarityUtils';
 
 interface UnlocksCelebrationProps {
   myBadges: Badge[];
@@ -19,7 +21,9 @@ interface CelebrationItem {
   id: string;
   type: 'badge' | 'title';
   name: string;
+  nameEn?: string;
   description: string;
+  descriptionEn?: string;
   emoji?: string;
   color?: string;
   bgColor?: string;
@@ -49,6 +53,7 @@ const COLORS = [
 ];
 
 export default function UnlocksCelebration({ myBadges, myTitles, myPrefixes = [], mySuffixes = [], userId, isProfileLoaded, isGachaActive }: UnlocksCelebrationProps) {
+  const { language, t } = useLanguage();
   const [queue, setQueue] = useState<CelebrationItem[]>([]);
   const [activeItem, setActiveItem] = useState<CelebrationItem | null>(null);
   
@@ -152,7 +157,9 @@ export default function UnlocksCelebration({ myBadges, myTitles, myPrefixes = []
           id: `badge-${b.id}`,
           type: 'badge',
           name: b.name,
+          nameEn: b.nameEn,
           description: b.description,
+          descriptionEn: b.descriptionEn,
           emoji: b.emoji,
           color: b.color,
           bgColor: b.bgColor,
@@ -171,7 +178,9 @@ export default function UnlocksCelebration({ myBadges, myTitles, myPrefixes = []
           id: `title-${t.id}`,
           type: 'title',
           name: t.name,
-          description: t.conditionText
+          nameEn: t.nameEn,
+          description: t.conditionText,
+          descriptionEn: t.conditionTextEn
         });
       }
     }
@@ -181,11 +190,15 @@ export default function UnlocksCelebration({ myBadges, myTitles, myPrefixes = []
       if (!knownPrefixesRef.current.has(p.id)) {
         knownPrefixesRef.current.add(p.id);
         newlyUnlockedPrefixes.push(p.id);
+        const pNameEn = p.textEn || PREFIX_TRANSLATIONS[p.text] || p.text;
+        const pDescEn = p.conditionTextEn || CONDITION_TRANSLATIONS[p.conditionText] || p.conditionText || 'Special Title Part (Prefix)';
         newCelebrations.push({
           id: `prefix-${p.id}`,
           type: 'title',
           name: `「${p.text}」`,
-          description: p.conditionText || '特別2つ名パーツ(前句)'
+          nameEn: `"${pNameEn}"`,
+          description: p.conditionText || '特別2つ名パーツ(前句)',
+          descriptionEn: pDescEn
         });
       }
     }
@@ -195,11 +208,15 @@ export default function UnlocksCelebration({ myBadges, myTitles, myPrefixes = []
       if (!knownSuffixesRef.current.has(s.id)) {
         knownSuffixesRef.current.add(s.id);
         newlyUnlockedSuffixes.push(s.id);
+        const sNameEn = s.textEn || SUFFIX_TRANSLATIONS[s.text] || s.text;
+        const sDescEn = s.conditionTextEn || CONDITION_TRANSLATIONS[s.conditionText] || s.conditionText || 'Special Title Part (Suffix)';
         newCelebrations.push({
           id: `suffix-${s.id}`,
           type: 'title',
           name: `「${s.text}」`,
-          description: s.conditionText || '特別2つ名パーツ(後句)'
+          nameEn: `"${sNameEn}"`,
+          description: s.conditionText || '特別2つ名パーツ(後句)',
+          descriptionEn: sDescEn
         });
       }
     }
@@ -519,12 +536,14 @@ export default function UnlocksCelebration({ myBadges, myTitles, myPrefixes = []
 
             {/* Type specification label */}
             <span className="text-[10px] font-bold text-orange-400 uppercase tracking-widest block mb-1">
-              {activeItem.type === 'badge' ? 'コレクティブバッジ' : '称号・2つ名パーツ'}
+              {activeItem.type === 'badge' 
+                ? (language === 'en' ? 'Collective Badge' : 'コレクティブバッジ')
+                : (language === 'en' ? 'Title / Part' : '称号・2つ名パーツ')}
             </span>
 
             {/* Achievement Title */}
             <h4 className="text-2xl font-black text-orange-950 tracking-tight leading-tight mb-2 px-2">
-              「{activeItem.name}」
+              「{language === 'en' ? (activeItem.nameEn || activeItem.name) : activeItem.name}」
             </h4>
 
             {/* Rarity or Sub details */}
@@ -532,14 +551,14 @@ export default function UnlocksCelebration({ myBadges, myTitles, myPrefixes = []
               const rStyle = getBadgeRarityStyle(activeItem.rarity as any);
               return (
                 <span className={`text-[9px] px-3 py-1 rounded-full border font-black uppercase tracking-wider mb-4 shadow-sm inline-block ${rStyle.bg} ${rStyle.border} ${rStyle.text}`}>
-                  レアリティ: {activeItem.rarity}
+                  {language === 'en' ? `Rarity: ${activeItem.rarity}` : `レアリティ: ${activeItem.rarity}`}
                 </span>
               );
             })()}
 
             {/* Description */}
             <p className="text-xs text-orange-900/70 font-medium leading-relaxed max-w-xs mb-8 px-4">
-              {activeItem.description}
+              {language === 'en' ? (activeItem.descriptionEn || activeItem.description) : activeItem.description}
             </p>
 
             {/* Glowing Confirm Button */}
@@ -547,7 +566,7 @@ export default function UnlocksCelebration({ myBadges, myTitles, myPrefixes = []
               onClick={handleClose}
               className="w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 font-extrabold text-xs text-white shadow-lg shadow-orange-500/20 hover:shadow-orange-600/30 transition-all transform hover:scale-[1.02] active:scale-95 duration-200"
             >
-              誇らしく受け取る (Got it!)
+              {t("誇らしく受け取る (Got it!)", "Proudly Accept (Got it!)")}
             </button>
           </motion.div>
         </AnimatePresence>

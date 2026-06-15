@@ -204,6 +204,19 @@ const INITIAL_STATE: GachaState = {
   dailyMissionsClaimed: {}
 };
 
+// Tracking synchronization state per user to prevent premature overwrites on initial boot
+const profileSyncedUsers: Record<string, boolean> = {};
+
+export function setProfileSynced(userId: string, synced: boolean) {
+  if (userId) {
+    profileSyncedUsers[userId] = synced;
+  }
+}
+
+export function isProfileSynced(userId: string): boolean {
+  return !userId || !!profileSyncedUsers[userId];
+}
+
 export function getGachaState(userId: string): GachaState {
   if (!userId) return INITIAL_STATE;
   const key = `jimicchi_gacha_v3_${userId}`;
@@ -235,22 +248,26 @@ export function saveGachaState(userId: string, state: GachaState) {
   state.lastActionDate = todayStr;
   localStorage.setItem(key, JSON.stringify(state));
 
-  // Sync state to Firestore profile
-  try {
-    const profileRef = doc(db, 'profiles', userId);
-    updateDoc(profileRef, {
-      unlockedPrefixIds: state.unlockedPrefixIds || [],
-      unlockedSuffixIds: state.unlockedSuffixIds || [],
-      unlockedBadgeIds: state.unlockedBadgeIds || [],
-      coins: state.coins !== undefined ? state.coins : 500,
-      shards: state.shards !== undefined ? state.shards : 0,
-      lastLoginDate: state.lastLoginDate || '',
-      loginStreak: state.loginStreak || 0
-    }).catch(err => {
-      console.warn("Failed to sync state to Firestore profile:", err);
-    });
-  } catch (err) {
-    console.warn("Firestore initialization error in saveGachaState sync:", err);
+  // Sync state to Firestore profile only if the main profile sync has successfully completed
+  if (profileSyncedUsers[userId]) {
+    try {
+      const profileRef = doc(db, 'profiles', userId);
+      updateDoc(profileRef, {
+        unlockedPrefixIds: state.unlockedPrefixIds || [],
+        unlockedSuffixIds: state.unlockedSuffixIds || [],
+        unlockedBadgeIds: state.unlockedBadgeIds || [],
+        coins: state.coins !== undefined ? state.coins : 500,
+        shards: state.shards !== undefined ? state.shards : 0,
+        lastLoginDate: state.lastLoginDate || '',
+        loginStreak: state.loginStreak || 0
+      }).catch(err => {
+        console.warn("Failed to sync state to Firestore profile:", err);
+      });
+    } catch (err) {
+      console.warn("Firestore initialization error in saveGachaState sync:", err);
+    }
+  } else {
+    console.log(`[gachaStore] Skipped Firestore state sync for ${userId} because profile sync has not yet completed.`);
   }
 }
 

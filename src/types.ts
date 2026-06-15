@@ -17,6 +17,10 @@ export interface Scene {
   commentCount?: number;  // コメント数
   profileVisits?: number; // プロフィールアクセス数
   isAnonymousPost?: boolean;
+  stickers?: Record<string, string[]>; // Map of stickerId -> array of UIDs who reacted
+  excavationsCount?: number; // 発掘回数
+  sashiireCount?: number; // 差し入れ回数
+  kairanAmount?: number; // 回覧板コイン量
 }
 
 export interface Follow {
@@ -40,6 +44,7 @@ export interface Message {
   content: string;
   createdAt: Timestamp;
   read: boolean;
+  stickerId?: string; // Optional sticker ID if it is a sticker stamp message
 }
 
 export interface Comment {
@@ -50,6 +55,7 @@ export interface Comment {
   authorPhoto: string;
   content: string;
   createdAt: Timestamp;
+  stickers?: Record<string, string[]>; // Map of stickerId -> array of UIDs who reacted
 }
 
 export interface Profile {
@@ -64,6 +70,12 @@ export interface Profile {
   lastReadAnnouncementId?: string;
   selectedTitle?: string; // 選択中の称号
   equippedBadges?: string[]; // 装備中のバッジIDの配列（最大5個）
+
+  // JSEウォレットと保有ポートフォリオの永続データ
+  jCoins?: number;                 // J-コイン
+  jseHoldings?: Record<string, { qty: number; avgPrice: number }>; // JSE保有株
+  jseRealizedPnL?: number;         // JSE実現損益
+  jseUnlockedAchievements?: string[]; // JSE実績
 
   // 2つ名とバッジの解放基準用統計データ
   postsCount?: number;             // 投稿数
@@ -91,6 +103,10 @@ export interface Profile {
   hasCrossedOcean?: boolean;       // 海を越えたフラグ
   isFirstOverseasUser?: boolean;   // 初の海外ユーザー
   language?: string;               // 言語設定
+  referralCodeUsed?: string;       // すでに使用した招待コード
+  supportLink?: string;            // サポーター応援リンク（Kyash, OFUSE, Amazon等）
+  excavatedScenes?: string[];      // 過去に発掘した石化投稿ID
+  excavatedScenery?: Record<string, number>; // 各シーン毎のパーソナル発掘チップ深度
 }
 
 export interface Announcement {
@@ -118,6 +134,8 @@ export interface AdminMessage {
   content: string;
   createdAt: Timestamp;
   read: boolean;
+  sceneId?: string; // Tapping will take to this scene
+  type?: string;    // type of message e.g. 'sticker', 'dm', 'system'
 }
 
 export enum OperationType {

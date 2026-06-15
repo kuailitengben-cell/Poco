@@ -1,5 +1,5 @@
 // Title Rarity Utilities
-import { Badge } from './badgeUtils';
+import { Badge, TITLE_PREFIXES } from './badgeUtils';
 
 export type Rarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary' | 'mythic';
 
@@ -42,6 +42,7 @@ export const PREFIX_TRANSLATIONS: Record<string, string> = {
   '地味界の': 'In Subtlety World',
   '共感されし': 'Sympathized',
   '運営も': 'Admins Also',
+  '運営でも': 'Even Admins',
   '生活の一部な': 'Habitual',
   '神算鬼謀の': 'Mastermind',
   '絶対的': 'Absolute',
@@ -90,6 +91,15 @@ export const PREFIX_TRANSLATIONS: Record<string, string> = {
   '大洋を渡った': 'Ocean-Crossing',
   'クイーンズランドの': "Queensland's",
   '地味は国境を越える': 'Jimicchi Crosses Borders',
+  'あるあるの': 'Relatable',
+  '気づいたら': 'Before I Knew It',
+  '終わりなき': 'Neverending',
+  '宿題より': 'More Than Homework',
+  '共感されない': 'Unrelatable',
+  '既読感覚の': 'Seen-Zone',
+  'ビギナー': 'Beginner',
+  'お忍びの': 'Incognito',
+  '人間心理の': 'Human Psychology',
 };
 
 export const SUFFIX_TRANSLATIONS: Record<string, string> = {
@@ -158,6 +168,16 @@ export const SUFFIX_TRANSLATIONS: Record<string, string> = {
   '共感した': 'Empathizer',
   '投稿者': 'Poster',
   '開拓者': 'Explorer',
+  'わかる人': 'Sensing Mind',
+  '共感職人': 'Empathy Artisan',
+  'つぶやき': 'Whisperer',
+  'ジミっち': 'Jimicchi',
+  '天才': 'Genius',
+  '閲覧勢': 'Silent Reader',
+  '見たことない': 'Unseen One',
+  '予知能力者': 'Precognitive',
+  'チャネラー': 'Channeler',
+  '創造神': 'Creator God',
 };
 
 export const TITLE_TRANSLATIONS: Record<string, string> = {
@@ -349,9 +369,24 @@ export function resolveTitleDetails(fullTitle: string, equippedBadges: string[] 
   let matchedSuffix = '';
 
   // Sort prefixes by length descending to match largest segment first
-  const sortedPrefixKeys = Object.keys(PREFIX_RARITIES).sort((a, b) => b.length - a.length);
+  const allKnownPrefixes = new Set<string>([
+    ...Object.keys(PREFIX_RARITIES),
+    ...Object.keys(PREFIX_TRANSLATIONS),
+  ]);
+
+  try {
+    if (typeof TITLE_PREFIXES !== 'undefined' && Array.isArray(TITLE_PREFIXES)) {
+      TITLE_PREFIXES.forEach(p => {
+        if (p && p.text) allKnownPrefixes.add(p.text);
+      });
+    }
+  } catch (err) {
+    // safe fallback
+  }
+
+  const sortedPrefixKeys = Array.from(allKnownPrefixes).sort((a, b) => b.length - a.length);
   for (const prefix of sortedPrefixKeys) {
-    if (baseText.startsWith(prefix)) {
+    if (prefix && baseText.startsWith(prefix)) {
       matchedPrefix = prefix;
       matchedSuffix = baseText.substring(prefix.length);
       break;

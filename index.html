@@ -1,11 +1,125 @@
 <!doctype html>
-<html lang="en">
+<html lang="ja">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>My Google AI Studio App</title>
+    <title>地味っち (Jimicchi) - ささやかな日常に地味に共感する安心・安全な新世代SNS</title>
+    <meta name="description" content="日常の何気ない大失敗、小さなこだわり、くだらない思考を投稿して『地味な共感』の輪を広げる、日本一優しいSNS「地味っち（Jimicchi）」。ダジャレ、川柳、株式パロディ、おやつ差し入れ機能、オリジナルアバターガチャなど温かい仕掛けが満載です。" />
+    <meta name="keywords" content="地味っち, Jimicchi, 地味っちSNS, 地味話, あるあるSNS, あるあるネタ, 共感アプリ, 高校生開発, 個人開発Webアプリ, 投げ銭SNS, ブログパーツ, はてなブログ紹介, WordPress連携, 暖かいSNS, 心地よいコミュニティ, ダジャレ王決定戦, 川柳バトル, 地味ガチャ" />
+    <meta name="author" content="Jimicchi Creative Dev Team" />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://jimicchi.run.app/" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://jimicchi.run.app/" />
+    <meta property="og:title" content="地味っち (Jimicchi) - ささやかな日常に地味に共感する新世代SNS" />
+    <meta property="og:description" content="誰に言うほどでもない日常の『地味すぎる瞬間』を投稿して、クスッと笑いあう日本一優しいSNS「地味っち」。ガチャやダジャレ広場、おやつ差し入れ機能を搭載！" />
+    <meta property="og:image" content="https://api.dicebear.com/7.x/fun-emoji/svg?seed=jimicchi_seo_og_v1" />
+    <meta property="og:site_name" content="地味っち (Jimicchi)" />
+    <meta property="og:locale" content="ja_JP" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="地味っち (Jimicchi) - ささやかな日常に地味に共感する新世代SNS" />
+    <meta name="twitter:description" content="誰に言うほどでもない日常の『地味すぎる瞬間』を投稿して、クスッと笑いあう日本一優しいSNS「地味っち（Jimicchi）」" />
+    <meta name="twitter:image" content="https://api.dicebear.com/7.x/fun-emoji/svg?seed=jimicchi_seo_og_v1" />
+
+    <!-- JSON-LD for Rich Snippets (Search Engines) -->
+    <script type="application/ld+json">
+      [
+        {
+          "@context": "https://schema.org",
+          "@type": "WebApplication",
+          "name": "地味っち",
+          "alternateName": "Jimicchi",
+          "url": "https://jimicchi.run.app",
+          "description": "日常の些細な出来事や大失敗、小さなこだわりを共有して「地味な共感」を交換する。ガチャ、仮想株式、おやつ投げ銭機能を備えた日本初の地味共感プラットフォーム。",
+          "applicationCategory": "SocialNetworkingApplication",
+          "operatingSystem": "Web, iOS, Android (PWA Supported)",
+          "features": [
+            "地味話(日常シーン)投稿・共感システム",
+            "地味ガチャ (オリジナルアイコン・肩書)",
+            "地味ひろば (ダジャレ・川柳 Daily バトル)",
+            "応援用おやつ差し入れ(投げ銭風リンク)",
+            "地味っち証券取引所 (JSE：日常現象への投資・バッジ獲得)"
+          ],
+          "creator": {
+            "@type": "Organization",
+            "name": "Jimicchi Dev Team"
+          }
+        },
+        {
+          "@context": "https://schema.org",
+          "@type": "WebSite",
+          "url": "https://jimicchi.run.app",
+          "potentialAction": {
+            "@type": "SearchAction",
+            "target": "https://jimicchi.run.app/?p={search_term_string}",
+            "query-input": "required name=search_term_string"
+          }
+        },
+        {
+          "@context": "https://schema.org",
+          "@type": "FAQPage",
+          "mainEntity": [
+            {
+              "@type": "Question",
+              "name": "地味っち（Jimicchi）とは何ですか？",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "日常の些細な出来事、大失敗、こだわりを投稿し、他者と『地味な共感』を交わすための安全で温かいSNS（コミュニティプラットフォーム）です。"
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "地味ガチャとは何ですか？",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "毎日ログインや投稿で貯まるJ-コイン（仮想コイン）を使って回せるガチャです。個性的なアバター（バッジ）や称号を無課金・安全に装備することができます。"
+              }
+            }
+          ]
+        }
+      ]
+    </script>
   </head>
-  <body>
+  <body class="bg-[#FDFCFB] text-[#1A1A1A]">
+    <!-- Hidden SEO Content for Google Spiders (Fully safe, non-stuffed, contextually relevant) -->
+    <header style="display:none;">
+      <h1>地味っち (Jimicchi) - 日本最大級の『地味な共感』SNSプラットフォーム</h1>
+      <nav>
+        <ul>
+          <li><a href="#feed">地味話タイムライン</a></li>
+          <li><a href="#plaza">地味ひろば (ダジャレ・川柳)</a></li>
+          <li><a href="#jse">地味っち証券取引所 (JSE)</a></li>
+          <li><a href="#gacha">限定地味ガチャ</a></li>
+        </ul>
+      </nav>
+    </header>
+
+    <main style="display:none;">
+      <article>
+        <h2>地味っちで体験できる温かいコンテンツ</h2>
+        <section>
+          <h3>1. 地味に心に刺さる日常エピソードの数々</h3>
+          <p>「靴下を脱いだら中に小さな石が入っていた」「コンビニでお釣りをもらうとき手が触れて一瞬気まずくなった」など、SNSに大真面目に書くには小さすぎるけれど、誰かと共有したい些細な日常をありのままに話せる居場所を提供しています。</p>
+        </section>
+        <section>
+          <h3>2. クリエイターを支える「おやつ差し入れ」機能</h3>
+          <p>おもしろいエピソードを投稿してくれた執筆者に対し、温かいおやつ（サポートリンク等）を届けるハートフルなやりとりが日常的に行われています。</p>
+        </section>
+        <section>
+          <h3>3. 毎日の知恵を競う「ダジャレ・川柳バトル」</h3>
+          <p>今日の優秀作品を決める毎日開催のコンテスト。みんなが審査員となり、優れた日常詩歌にJ-コインを投げ合います。</p>
+        </section>
+      </article>
+    </main>
+
+    <footer style="display:none;">
+      <p>&copy; 2026 地味っち (Jimicchi) | ささやかな日々が主役になるSNS。個人開発・学生開発の成長を見守るコミュニティ。</p>
+    </footer>
+    
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

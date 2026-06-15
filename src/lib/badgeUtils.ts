@@ -1487,6 +1487,66 @@ export const BADGES: Badge[] = [
     threshold: 1,
     category: 'unique',
     rarity: 'mythic'
+  },
+  {
+    id: 'badge_jse_first_trade',
+    name: '📈 初取引 (First Trade)',
+    description: 'JSE「人類あるある市場」で初めての取引注文を完了した優良な初期メンバー。',
+    iconName: 'Sparkles',
+    emoji: '🪙',
+    color: 'text-[#b45309]',
+    bgColor: 'bg-orange-50',
+    borderColor: 'border-orange-200',
+    conditionText: 'JSEでいすれかの日常現象株を初めて購入または売却する',
+    type: 'custom',
+    threshold: 1,
+    category: 'unique',
+    rarity: 'uncommon'
+  },
+  {
+    id: 'badge_jse_first_profit',
+    name: '📈 初利益 (First Profit)',
+    description: '相場を生き抜き、日常あるある株の売り買いによって初めて純利益を確定させた敏腕トレーダー。',
+    iconName: 'Trophy',
+    emoji: '🏆',
+    color: 'text-rose-605',
+    bgColor: 'bg-rose-50',
+    borderColor: 'border-rose-200',
+    conditionText: 'JSE取引の確定損益(Realized Profit)をプラスにする',
+    type: 'custom',
+    threshold: 1,
+    category: 'unique',
+    rarity: 'rare'
+  },
+  {
+    id: 'badge_jse_wealth_100k',
+    name: '📈 資産10万J (100k Wealth)',
+    description: '地味株の波を読み解き、総資産評価額を大台の「100,000 J-Coin」に乗せたJSE中堅資産家。',
+    iconName: 'Crown',
+    emoji: '👑',
+    color: 'text-amber-700',
+    bgColor: 'bg-amber-50',
+    borderColor: 'border-amber-300',
+    conditionText: 'JSEでのキャッシュと保有株の合計評価額が10万Jに達する',
+    type: 'custom',
+    threshold: 100000,
+    category: 'unique',
+    rarity: 'epic'
+  },
+  {
+    id: 'badge_jse_wealth_1m',
+    name: '📈 資産100万J (1M Wealth)',
+    description: 'あるある経済圏を完全に掌握し、資産評価額「1,000,000 J-Coin」を記録した市場伝説。',
+    iconName: 'Crown',
+    emoji: '💎',
+    color: 'text-purple-700',
+    bgColor: 'bg-purple-50',
+    borderColor: 'border-purple-350',
+    conditionText: 'JSEでのキャッシュと保有株の合計評価額が100万Jに達する',
+    type: 'custom',
+    threshold: 1000000,
+    category: 'unique',
+    rarity: 'legendary'
   }
 ];
 
@@ -1706,6 +1766,469 @@ export const TITLES: Title[] = [
   { id: 'title_streak_6', name: '地味共感の創造神', nameEn: 'Creator of Subtle Empathy', conditionText: '予測成功 6連続以上', conditionTextEn: 'Prediction streak of 6+' }
 ];
 
+// Dynamic English translations map for all localizable badges
+const BADGES_EN_TRANSLATIONS: Record<string, { nameEn: string; descriptionEn: string; conditionTextEn: string }> = {
+  badge_haiku_king: {
+    nameEn: 'Subtle Haiku King',
+    descriptionEn: 'Winner of the Subtle Haiku Contest in Jimi Plaza! A legendary poet of the mundane.',
+    conditionTextEn: 'Won the Jimi Plaza Haiku contest'
+  },
+  badge_dajare_king: {
+    nameEn: 'Subtle Pun King',
+    descriptionEn: 'Winner of the Subtle Pun Contest in Jimi Plaza. A true wordplay virtuoso!',
+    conditionTextEn: 'Won the Jimi Plaza Pun contest'
+  },
+  badge_bookshelf_resident: {
+    nameEn: 'Bookshelf Resident',
+    descriptionEn: 'An up-and-coming writer who published their first work/story in Jimi Books!',
+    conditionTextEn: 'Post 1 work in Jimi Books'
+  },
+  badge_text_addict: {
+    nameEn: 'Text Addict',
+    descriptionEn: 'A veteran novelist who has published 3 or more works in Jimi Books!',
+    conditionTextEn: 'Post 3+ works in Jimi Books'
+  },
+  badge_consecutive_champion: {
+    nameEn: 'Grand Champion',
+    descriptionEn: 'The absolute ruler of Jimi Plaza events who won multiple times or back-to-back!',
+    conditionTextEn: 'Win Jimi Plaza events 2+ times'
+  },
+  badge_runnerup_collector: {
+    nameEn: 'Silver Collector',
+    descriptionEn: 'An incredibly relatable contender who won second place in an event. So close!',
+    conditionTextEn: 'Earn 2nd place in a Jimi Plaza event'
+  },
+  synchro_1: {
+    nameEn: 'Casual Relater',
+    descriptionEn: 'First time predicting your episode upvote percentage within a 10% margin.',
+    conditionTextEn: '1 successful sync prediction'
+  },
+  streak_5: {
+    nameEn: 'Making Waves',
+    descriptionEn: 'Successfully predicted 5 times in a row! Your insights ripple through our community.',
+    conditionTextEn: '5-streak sync success'
+  },
+  badge_first_post: {
+    nameEn: 'First Step',
+    descriptionEn: 'Your very first relatable post. Welcome to our humble empathetic journey!',
+    conditionTextEn: 'Post 1 time'
+  },
+  synchro_5: {
+    nameEn: 'Empathy Master',
+    descriptionEn: 'Predicted 5 total times within a 10% margin. You can foresee how people relate!',
+    conditionTextEn: '5 successful sync predictions'
+  },
+  streak_3: {
+    nameEn: 'Short-word Artisan',
+    descriptionEn: '3 consecutive prediction successes! Finding empathy in concise daily stories.',
+    conditionTextEn: '3-streak sync success'
+  },
+  badge_comment_100: {
+    nameEn: 'Comment Artisan',
+    descriptionEn: 'Sent over 100 warm comments or reactions. A connector of kind conversations.',
+    conditionTextEn: 'Write 100+ comments'
+  },
+  badge_one_hit_wonder: {
+    nameEn: 'Accidental Buzz',
+    descriptionEn: 'Earned 1000+ upvotes on a single episode, a hidden opinion leader of the mundane!',
+    conditionTextEn: 'Earn 1000 upvotes on 1 post'
+  },
+  badge_empathy_scholar: {
+    nameEn: 'Subtle Scholar',
+    descriptionEn: 'Synchronist with over 80% prediction success rate (running at least 5 trials).',
+    conditionTextEn: '80%+ sync success (min 5 trials)'
+  },
+  synchro_3: {
+    nameEn: 'Daily Researcher',
+    descriptionEn: '3 total prediction successes! Caringly researching everyone’s small routines.',
+    conditionTextEn: '3 successful sync predictions'
+  },
+  synchro_10: {
+    nameEn: 'Legendary Resident',
+    descriptionEn: '10 total prediction successes! Seeing through the deep relatability in everyone.',
+    conditionTextEn: '10 successful sync predictions'
+  },
+  badge_viewer_500: {
+    nameEn: 'The Silent Watcher',
+    descriptionEn: 'Read other users’ episodes over 500 times. A quiet, deep observer.',
+    conditionTextEn: 'View 500+ episodes'
+  },
+  badge_login_streak: {
+    nameEn: 'One Week Strong',
+    descriptionEn: 'Logged in to Jimicchi for 7 consecutive days, building a great habit!',
+    conditionTextEn: '7-day login streak'
+  },
+  badge_night_owl: {
+    nameEn: 'Late Night Beginner',
+    descriptionEn: 'Posted an episode between 11 PM and 4 AM, loving the quiet midnight moonlight.',
+    conditionTextEn: 'Post during late night'
+  },
+  badge_elder: {
+    nameEn: 'The Elder',
+    descriptionEn: 'An account older than 180 days, a highly respected pillar of the community.',
+    conditionTextEn: '180 days since registration'
+  },
+  badge_lunch_eating: {
+    nameEn: 'Lunch Resident',
+    descriptionEn: 'Posted 30+ times during lunchtime (12:00 PM - 1:00 PM), a munching regular!',
+    conditionTextEn: '30+ posts between 12-1 PM'
+  },
+  badge_night_walk: {
+    nameEn: 'Midnight Warden',
+    descriptionEn: 'Read episodes over 50 times after 2:00 AM, a silent guardian of the night.',
+    conditionTextEn: '50+ views after 2 AM'
+  },
+  badge_material_wood: {
+    nameEn: 'Wooden Badge',
+    descriptionEn: 'A cozy wooden style badge. You have posted at least 5 local episodes.',
+    conditionTextEn: 'Post 5+ episodes'
+  },
+  badge_material_metal: {
+    nameEn: 'Metal Badge',
+    descriptionEn: 'Heavy and reliable. You have received over 15 upvotes across all posts.',
+    conditionTextEn: 'Receive 15+ total upvotes'
+  },
+  badge_material_glass: {
+    nameEn: 'Glass Badge',
+    descriptionEn: 'Elegant and transparent. You have viewed other users’ episodes at least 150 times.',
+    conditionTextEn: 'View 150+ episodes'
+  },
+  badge_material_crystal: {
+    nameEn: 'Crystal Badge',
+    descriptionEn: 'Shimmering and crystal. Granted to those with 15 total login days.',
+    conditionTextEn: 'Log in for 15+ total days'
+  },
+  badge_material_hologram: {
+    nameEn: 'Hologram Badge',
+    descriptionEn: 'Changes colors depending on the angle. You have commented on other posts 25+ times.',
+    conditionTextEn: 'Post 25+ comments'
+  },
+  badge_material_neon: {
+    nameEn: 'Neon Badge',
+    descriptionEn: 'Glowing in the night. You have posted at least 10 times after 11 PM.',
+    conditionTextEn: 'Post 10+ times during late night'
+  },
+  badge_material_flame: {
+    nameEn: 'Flame Badge',
+    descriptionEn: 'Burning passion. Earned a remarkable 25 upvotes on a single episode.',
+    conditionTextEn: 'Earn 25 upvotes on 1 post'
+  },
+  badge_material_starry: {
+    nameEn: 'Starry Night Badge',
+    descriptionEn: 'Stunning night sky. Wandered through the app after 2 AM (viewing 20+ times).',
+    conditionTextEn: 'View 20+ times after 2 AM'
+  },
+  streak_6: {
+    nameEn: 'Beyond Relatability',
+    descriptionEn: 'Incredible 6+ consecutive prediction successes! You stand at the absolute peak.',
+    conditionTextEn: '6+ streak sync success'
+  },
+  badge_silent_king: {
+    nameEn: 'Absolutely Nothing',
+    descriptionEn: 'Posted over 50 times, but the average upvotes is 3 or less. A surreal, silent atmosphere.',
+    conditionTextEn: 'Post 50+ times with <= 3 upvote average'
+  },
+  badge_delete_past: {
+    nameEn: 'History Deleter',
+    descriptionEn: 'Executed post deletion over 20 times. A true cleaning pro of historical records.',
+    conditionTextEn: 'Delete posts 20+ times'
+  },
+  badge_returned: {
+    nameEn: 'The Returnee',
+    descriptionEn: 'Returned to Jimicchi after an absence of over 30 days. Welcome back, traveler!',
+    conditionTextEn: 'Log in after 30+ days away'
+  },
+  badge_buzz_almost: {
+    nameEn: 'Edge of Greatness',
+    descriptionEn: 'Unbelievably reached exactly 999 upvotes on one post, falling 1 short of 1000!',
+    conditionTextEn: 'Achieve exactly 999 upvotes on 1 post'
+  },
+  badge_invisible: {
+    nameEn: 'Invisible Presence',
+    descriptionEn: 'Posted for 7+ consecutive days, but received absolutely zero total upvotes.',
+    conditionTextEn: '7+ consecutive posts with zero upvotes'
+  },
+  badge_lucky_gacha: {
+    nameEn: 'Lucky Draw Pro',
+    descriptionEn: 'Hit the ultimate jackpot (SSR/Legendary) on a gacha draw or fortune slip! Amazing!',
+    conditionTextEn: 'Win the jackpot'
+  },
+  badge_gacha_socks: {
+    nameEn: 'One Missing Sock',
+    descriptionEn: 'For those who know the subtle sorrow of never finding your matching sock.',
+    conditionTextEn: 'Gacha Exclusive (Common)'
+  },
+  badge_gacha_stone: {
+    nameEn: 'Nothing in Particular',
+    descriptionEn: 'Always replying "Nothing" when asked. Solid peaceful state of emptiness.',
+    conditionTextEn: 'Gacha Exclusive (Uncommon)'
+  },
+  badge_gacha_sofa: {
+    nameEn: 'Lord of the Sofa',
+    descriptionEn: 'Once sunk into the sofa cushions, vowed never to rise again.',
+    conditionTextEn: 'Gacha Exclusive (Rare)'
+  },
+  badge_gacha_antenna: {
+    nameEn: 'Single-Grid signal',
+    descriptionEn: 'Quietly searching for empathy even with just a single bar of signal.',
+    conditionTextEn: 'Gacha Exclusive (Rare)'
+  },
+  badge_gacha_owl: {
+    nameEn: 'Night Warden Owl',
+    descriptionEn: 'Appearing quietly in the dead of night to oversee the subtle moments.',
+    conditionTextEn: 'Gacha Exclusive (Epic)'
+  },
+  badge_gacha_bread: {
+    nameEn: 'Perfect Toast',
+    descriptionEn: 'Breakfast toast got slightly singed, but it was a perfect miracle of taste!',
+    conditionTextEn: 'Gacha Exclusive (Epic)'
+  },
+  badge_gacha_starry: {
+    nameEn: 'Somehow Emotional',
+    descriptionEn: 'Sensing an indescribable warmth in the tiny, quiet moments of daily life.',
+    conditionTextEn: 'Gacha Exclusive (Legendary)'
+  },
+  badge_gacha_crown: {
+    nameEn: 'Subtle King Candidate',
+    descriptionEn: 'Governing the realm of simple, everyday moments with a temporary paper crown.',
+    conditionTextEn: 'Gacha Exclusive (Legendary)'
+  },
+  badge_gacha_yofukashi_nintei: {
+    nameEn: 'Certified Late Owl',
+    descriptionEn: 'Officially certifying your late night stamina and quiet presence.',
+    conditionTextEn: 'Gacha Exclusive (Uncommon)'
+  },
+  badge_gacha_nurui_coffee: {
+    nameEn: 'Lukewarm Coffee',
+    descriptionEn: 'Appreciating the warm, cozy temperature of a coffee left a bit too long.',
+    conditionTextEn: 'Gacha Exclusive (Uncommon)'
+  },
+  badge_gacha_chisai_radio: {
+    nameEn: 'Tiny Radio Set',
+    descriptionEn: 'Spinning low tunes with tiny static noise in a quiet corner of the room.',
+    conditionTextEn: 'Gacha Exclusive (Uncommon)'
+  },
+  badge_gacha_nanka_mita_kagami: {
+    nameEn: 'Passed-by Mirror',
+    descriptionEn: 'Looking into the mirror in passing to confirm you are still your usual self.',
+    conditionTextEn: 'Gacha Exclusive (Uncommon)'
+  },
+  badge_gacha_sofa_kotei: {
+    nameEn: 'Reserved Sofa Spot',
+    descriptionEn: 'Sofa is perfectly fitted, temporarily increasing local gravity in this spot.',
+    conditionTextEn: 'Gacha Exclusive (Uncommon)'
+  },
+  badge_gacha_aita_mama_hon: {
+    nameEn: 'Left-Opened Book',
+    descriptionEn: 'Falling asleep with the book open, not even inserting a bookmark.',
+    conditionTextEn: 'Gacha Exclusive (Uncommon)'
+  },
+  badge_gacha_kori_nokori: {
+    nameEn: 'One Last Ice Cube',
+    descriptionEn: 'The lonely last ice cube clinking quietly inside your glass.',
+    conditionTextEn: 'Gacha Exclusive (Uncommon)'
+  },
+  badge_gacha_hanbun_fusen: {
+    nameEn: 'Half-Done Bookmark',
+    descriptionEn: 'The neat state of tasks of tomorrow coexisting with those already done.',
+    conditionTextEn: 'Gacha Exclusive (Uncommon)'
+  },
+  badge_gacha_sasatta_ya: {
+    nameEn: 'Relatable Arrow',
+    descriptionEn: 'A sharp arrow of relatability that quietly pierces someone’s heart.',
+    conditionTextEn: 'Gacha Exclusive (Rare)'
+  },
+  badge_gacha_chisai_nami: {
+    nameEn: 'Tiny Ripples',
+    descriptionEn: 'The gentle breeze breaking the silence with a small emotional wave.',
+    conditionTextEn: 'Gacha Exclusive (Rare)'
+  },
+  badge_gacha_shinya_bangumi: {
+    nameEn: 'Late Night Show',
+    descriptionEn: 'Stumbling upon a local, surprisingly interesting program at midnight.',
+    conditionTextEn: 'Gacha Exclusive (Rare)'
+  },
+  badge_gacha_yoru_owl: {
+    nameEn: 'Nocturnal Owl',
+    descriptionEn: 'Night eyes watching the world in the quiet dark.',
+    conditionTextEn: 'Gacha Exclusive (Rare)'
+  },
+  badge_gacha_nazo_coin: {
+    nameEn: 'Mystery Token',
+    descriptionEn: 'A metal piece in your pocket that you cannot remember when or where you got.',
+    conditionTextEn: 'Gacha Exclusive (Rare)'
+  },
+  badge_gacha_katamimi_earphone: {
+    nameEn: 'Single-Earbud Vibe',
+    descriptionEn: 'Connecting with the world through one half, leaving the other free.',
+    conditionTextEn: 'Gacha Exclusive (Rare)'
+  },
+  badge_gacha_chisai_ginga: {
+    nameEn: 'Tiny Galaxy',
+    descriptionEn: 'The small screen in your palm containing our lovely little cluster.',
+    conditionTextEn: 'Gacha Exclusive (Rare)'
+  },
+  badge_gacha_kosan_ticket: {
+    nameEn: 'Veteran Ticket',
+    descriptionEn: 'Your continuous passion supporting this community over time.',
+    conditionTextEn: 'Gacha Exclusive (Rare)'
+  },
+  badge_gacha_empathy_dna: {
+    nameEn: 'Empathy DNA',
+    descriptionEn: 'Intuitive understanding of people’s subtle moments. Absolute synchro gene.',
+    conditionTextEn: 'Gacha Exclusive (Epic)'
+  },
+  badge_gacha_sho_wakusei: {
+    nameEn: 'Little Asteroid',
+    descriptionEn: 'A small celestial body orbiting the solar system with its own orbit.',
+    conditionTextEn: 'Gacha Exclusive (Epic)'
+  },
+  badge_gacha_hikaru_no: {
+    nameEn: 'Glowing Brain',
+    descriptionEn: 'Relatable neurons firing with a streak of light during sync predictions.',
+    conditionTextEn: 'Gacha Exclusive (Epic)'
+  },
+  badge_gacha_kami_wand: {
+    nameEn: 'Paper Wand',
+    descriptionEn: 'Finding pride and magic inside a humble object.',
+    conditionTextEn: 'Gacha Exclusive (Epic)'
+  },
+  badge_gacha_shinya_denpa: {
+    nameEn: 'Midnight Signals',
+    descriptionEn: 'A soft mental echo between us, best heard in the silence after midnight.',
+    conditionTextEn: 'Gacha Exclusive (Epic)'
+  },
+  badge_gacha_furui_film: {
+    nameEn: 'Vintage Film',
+    descriptionEn: 'Durable, unfading everyday memories captured on old film rolls.',
+    conditionTextEn: 'Gacha Exclusive (Epic)'
+  },
+  badge_gacha_glass_cho: {
+    nameEn: 'Glass Butterfly',
+    descriptionEn: 'A delicate but elegantly fluttering butterfly of transparent beauty.',
+    conditionTextEn: 'Gacha Exclusive (Epic)'
+  },
+  badge_gacha_ochiru_ryusei: {
+    nameEn: 'Falling Meteor',
+    descriptionEn: 'A streak of light cutting through the night sky just for your passing.',
+    conditionTextEn: 'Gacha Exclusive (Epic)'
+  },
+  badge_gacha_kami_okan: {
+    nameEn: 'Paper Crown',
+    descriptionEn: 'Just a piece of paper, but the true crown of a Subtle Empathy Monarch.',
+    conditionTextEn: 'Gacha Exclusive (Legendary)'
+  },
+  badge_gacha_kodai_arch: {
+    nameEn: 'Ancient Archway',
+    descriptionEn: 'Supporting the grand history of relatable moments across long eras.',
+    conditionTextEn: 'Gacha Exclusive (Legendary)'
+  },
+  badge_gacha_hane_pen: {
+    nameEn: 'Feather Quill',
+    descriptionEn: 'Quietly recording our daily whispers inside the grand history of empathy.',
+    conditionTextEn: 'Gacha Exclusive (Legendary)'
+  },
+  badge_gacha_mangetsu: {
+    nameEn: 'The Full Moon',
+    descriptionEn: 'A perfect sphere softly illuminating the night to cover our loops.',
+    conditionTextEn: 'Gacha Exclusive (Legendary)'
+  },
+  badge_gacha_akanai_kagi: {
+    nameEn: 'The Unlocking Key',
+    descriptionEn: 'An unbreakable self-core that nobody else can decode.',
+    conditionTextEn: 'Gacha Exclusive (Legendary)'
+  },
+  badge_gacha_himitsu_no_kami: {
+    nameEn: 'Scroll of Secrets',
+    descriptionEn: 'The sacred textbook of relatable thoughts secretly recorded in time.',
+    conditionTextEn: 'Gacha Exclusive (Legendary)'
+  },
+  badge_gacha_anaaki_kinka: {
+    nameEn: 'Holed Gold Coin',
+    descriptionEn: 'An everlasting treasure with a hole in the middle, circulated with care.',
+    conditionTextEn: 'Gacha Exclusive (Legendary)'
+  },
+  badge_gacha_chisana_yusho: {
+    nameEn: 'Mini Championship',
+    descriptionEn: 'No fancy trophies, but your subtle heart certainly won first prize today!',
+    conditionTextEn: 'Gacha Exclusive (Legendary)'
+  },
+  badge_gacha_nanimonai_en: {
+    nameEn: 'Empty Circle',
+    descriptionEn: 'Perfect state of nothingness. The pure end goal of minimalist empathy.',
+    conditionTextEn: 'Gacha Exclusive (Mythic)'
+  },
+  badge_gacha_noise_to: {
+    nameEn: 'Static Tower',
+    descriptionEn: 'A mysterious tower in the outer world emitting quiet static signals.',
+    conditionTextEn: 'Gacha Exclusive (Mythic)'
+  },
+  badge_gacha_tomei_badge: {
+    nameEn: 'Invisibadge',
+    descriptionEn: 'Invisible even if you try to look. Pure state of absolute quiet.',
+    conditionTextEn: 'Gacha Exclusive (Mythic)'
+  },
+  badge_gacha_tada_no_ishi: {
+    nameEn: 'Ordinary Stone',
+    descriptionEn: 'A simple pebble. Quietly paying respect to its unchanging presence.',
+    conditionTextEn: 'Gacha Exclusive (Mythic)'
+  },
+  badge_gacha_chisai_ana: {
+    nameEn: 'Little Void',
+    descriptionEn: 'A tiny black hole at the bottom of the mind, whispering empty thoughts.',
+    conditionTextEn: 'Gacha Exclusive (Mythic)'
+  },
+  badge_gacha_me_mitaina_nanika: {
+    nameEn: 'The Eye-like Entity',
+    descriptionEn: 'A dazzling, mystic emblem looking back from an alternative dimension.',
+    conditionTextEn: 'Gacha Exclusive (Mythic)'
+  },
+  badge_gacha_yugami: {
+    nameEn: 'Spatial Warp',
+    descriptionEn: 'A slight tremor in daily spacetime, creating a relatable warp.',
+    conditionTextEn: 'Gacha Exclusive (Mythic)'
+  },
+  badge_gacha_hyoji_dekimasen: {
+    nameEn: 'Cannot Display',
+    descriptionEn: 'Undecodable, unwritable, an absolute mystery.',
+    conditionTextEn: 'Gacha Exclusive (Mythic)'
+  },
+  badge_gacha_mawasanakatta: {
+    nameEn: 'The Unspun Coin',
+    descriptionEn: 'Gained nothing, but somehow slightly relieved.',
+    conditionTextEn: 'Gacha Exclusive (Secret)'
+  },
+  badge_jse_first_trade: {
+    nameEn: '📈 First Trade',
+    descriptionEn: 'Completed a transaction order in JSE "Human Relatability Index" market.',
+    conditionTextEn: 'Complete a trade on the JSE'
+  },
+  badge_jse_first_profit: {
+    nameEn: '📈 First Profit',
+    descriptionEn: 'Survived the marketplace volatility to lock in your first historical net gain!',
+    conditionTextEn: 'Gain a positive realized PnL in the JSE'
+  },
+  badge_jse_wealth_100k: {
+    nameEn: '📈 100k Wealth',
+    descriptionEn: 'Achieved a total JSE net asset value of 100,000 J-Coin, a solid trader!',
+    conditionTextEn: 'Achieve 100,000 J-Coin net worth'
+  },
+  badge_jse_wealth_1m: {
+    nameEn: '📈 1M Wealth',
+    descriptionEn: 'A legendary JSE tycoon reaching a massive net worth of 1,000,000 J-Coin!',
+    conditionTextEn: 'Achieve 1,000,000 J-Coin net worth'
+  }
+};
+
+// Apply default English fallback properties if they are not explicitly specified inside BADGES
+for (const badge of BADGES) {
+  const t = BADGES_EN_TRANSLATIONS[badge.id];
+  if (t) {
+    if (!badge.nameEn) badge.nameEn = t.nameEn;
+    if (!badge.descriptionEn) badge.descriptionEn = t.descriptionEn;
+    if (!badge.conditionTextEn) badge.conditionTextEn = t.conditionTextEn;
+  }
+}
 export function getAnalyzedScenes(scenes: Scene[]) {
   const filtered = scenes
     .filter(s => s.confidence !== undefined && s.confidence !== null)

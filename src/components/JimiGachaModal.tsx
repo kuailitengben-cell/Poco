@@ -986,8 +986,8 @@ export default function JimiGachaModal({ userId, onClose, onItemUnlocked, isAdmi
                   <span className="bg-amber-400 text-stone-950 text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider shadow">GACHA DECK</span>
                   <p className="text-xs text-stone-300 font-bold">
                     {isOpeningSequence 
-                      ? "レバーが引かれました。運命の観測中..." 
-                      : `カプセルをタップして中身を解放してください (${revealedIndices.length} / ${pullResults.length} 開封済)`}
+                      ? t("レバーが引かれました。運命の観測中...", "Lever pulled. Observing destiny...") 
+                      : t(`カプセルをタップして中身を解放してください (${revealedIndices.length} / ${pullResults.length} 開封済)`, `Tap capsules to reveal contents (${revealedIndices.length} / ${pullResults.length} opened)`)}
                   </p>
                 </div>
                 {!isOpeningSequence && revealedIndices.length < pullResults.length && (
@@ -1000,7 +1000,7 @@ export default function JimiGachaModal({ userId, onClose, onItemUnlocked, isAdmi
                     className="bg-amber-500 hover:bg-amber-400 text-stone-950 text-xs font-black px-4 py-2 rounded-xl transition shadow active:scale-95 flex items-center gap-1 cursor-pointer"
                   >
                     <Sparkles className="w-3.5 h-3.5 text-stone-950" />
-                    すべて開放する
+                    {t('すべて開放する', 'Reveal All')}
                   </button>
                 )}
               </div>
@@ -1020,9 +1020,9 @@ export default function JimiGachaModal({ userId, onClose, onItemUnlocked, isAdmi
                       <div className="absolute -inset-4 rounded-full border border-amber-400/20 animate-ping opacity-40" />
                     </div>
                     <div className="space-y-2">
-                      <h4 className="text-xl font-black text-white tracking-widest animate-pulse">カプセルが下りてきています</h4>
+                      <h4 className="text-xl font-black text-white tracking-widest animate-pulse">{t('カプセルが下りてきています', 'Capsule is dropping...')}</h4>
                       <p className="text-xs text-stone-400 font-bold max-w-sm mx-auto leading-relaxed text-center">
-                        レトロな歯車が回り、おもちゃの軌道が構築されました。
+                        {t('レトロな歯車が回り、おもちゃの軌道が構築されました。', 'The vintage mechanism whirls, delivering your prize!')}
                       </p>
                     </div>
                   </div>
@@ -1124,10 +1124,10 @@ export default function JimiGachaModal({ userId, onClose, onItemUnlocked, isAdmi
                   {!isOpeningSequence && revealedIndices.length === pullResults.length ? (
                     <span className="text-amber-400 flex items-center gap-1">
                       <CheckCircle2 className="w-4 h-4 text-amber-400" />
-                      すべてのカプセルが開放されました！
+                      {t('すべてのカプセルが開放されました！', 'All capsules have been revealed!')}
                     </span>
                   ) : (
-                    <span>カプセルをそれぞれタップして、何が出たかワクワクしながら覗いてみよう！</span>
+                    <span>{t('カプセルをそれぞれタップして、何が出たかワクワクしながら覗いてみよう！', 'Tap each capsule to reveal its relatable prize!')}</span>
                   )}
                 </div>
 
@@ -1138,7 +1138,7 @@ export default function JimiGachaModal({ userId, onClose, onItemUnlocked, isAdmi
                       onClick={() => {
                         const required = pullResults.length === 1 ? 100 : pullResults.length === 10 ? 900 : 4500;
                         if (state.coins < required) {
-                          alert('地味コイン（GC）が足りないため、ショップで補充してください。');
+                          alert(t('地味コイン（GC）が足りないため、ショップで補充してください。', 'Not enough Gacha Coins. Please get some from the Promo Code center.'));
                           setShowGachaOverlay(false);
                           setShowCoinShop(true);
                           return;
@@ -1147,7 +1147,7 @@ export default function JimiGachaModal({ userId, onClose, onItemUnlocked, isAdmi
                       }}
                       className="bg-white hover:bg-neutral-100 text-stone-950 font-black px-6 py-3 rounded-2xl shadow active:scale-95 transition-all cursor-pointer"
                     >
-                      もう一度引く ({pullResults.length === 1 ? "100" : pullResults.length === 10 ? "900" : "4,500"} GC)
+                      {t('もう一度引く', 'Draw again')} ({pullResults.length === 1 ? "100" : pullResults.length === 10 ? "900" : "4,500"} GC)
                     </button>
                   )}
 
@@ -1155,7 +1155,7 @@ export default function JimiGachaModal({ userId, onClose, onItemUnlocked, isAdmi
                     onClick={() => setShowGachaOverlay(false)}
                     className="bg-stone-800 hover:bg-stone-700 text-white font-black px-6 py-3 rounded-2xl shadow active:scale-95 transition-all border border-stone-700 cursor-pointer"
                   >
-                    レバー画面に戻る
+                    {t('レバー画面に戻る', 'Back to machine')}
                   </button>
                 </div>
               </div>
@@ -1258,7 +1258,7 @@ export default function JimiGachaModal({ userId, onClose, onItemUnlocked, isAdmi
                   {/* Campaign Selector if there are active pools */}
                   <div className="w-full bg-orange-50/55 border border-orange-100/60 p-4 rounded-3xl space-y-2 select-none text-left">
                     <label className="text-[10px] font-black text-orange-850 uppercase tracking-widest block mb-1.5 flex items-center gap-1">
-                      <Sparkles className="w-3.5 h-3.5 text-orange-500 animate-spin" style={{ animationDuration: '4s' }} /> ガチャマシーンの切替
+                      <Sparkles className="w-3.5 h-3.5 text-orange-500 animate-spin" style={{ animationDuration: '4s' }} /> {t('ガチャマシーンの切替', 'Select Gacha Capsule')}
                     </label>
                     <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto pr-1">
                       <button
@@ -1272,8 +1272,8 @@ export default function JimiGachaModal({ userId, onClose, onItemUnlocked, isAdmi
                         )}
                       >
                         <div>
-                          <p className="text-xs font-black text-orange-950">🔮 通常の地味ガチャマシーン</p>
-                          <p className="text-[10px] text-slate-400 mt-0.5">全ての2つ名やバッジを狙える基本マシーン</p>
+                          <p className="text-xs font-black text-orange-950">{t('🔮 通常の地味ガチャマシーン', '🔮 General Gacha Machine')}</p>
+                          <p className="text-[10px] text-slate-400 mt-0.5">{t('すべての2つ名やバッジを狙える基本マシーン', 'Main machine targeting all title parts and badges.')}</p>
                         </div>
                         <span className="text-[10px] font-black text-slate-500 bg-slate-50 px-2 py-0.5 rounded-full border">100 GC〜</span>
                       </button>
@@ -1295,7 +1295,7 @@ export default function JimiGachaModal({ userId, onClose, onItemUnlocked, isAdmi
                           </div>
                           <div>
                             <p className="text-xs font-black text-orange-950">🎰 {p.name}</p>
-                            <p className="text-[10px] text-orange-600 mt-0.5 font-semibold">{p.description || '開催中の限定ガチャプール！'}</p>
+                            <p className="text-[10px] text-orange-600 mt-0.5 font-semibold">{p.description || t('開催中の限定ガチャプール！', 'In-progress limited Gacha pool!')}</p>
                           </div>
                           <span className="text-[10px] font-black text-white bg-orange-500 px-2 py-0.5 rounded-full shadow-sm">{p.cost1 ?? 100} GC〜</span>
                         </button>
@@ -1338,7 +1338,7 @@ export default function JimiGachaModal({ userId, onClose, onItemUnlocked, isAdmi
                         "w-12 h-12 bg-white border-3 border-orange-950 rounded-full flex items-center justify-center cursor-pointer shadow-md select-none transition-colors",
                         pulling ? "cursor-not-allowed opacity-80" : "hover:bg-neutral-50"
                       )}
-                      title="回転盤を回す"
+                      title={t("回転盤を回す", "Spin dial")}
                       onClick={() => !pulling && triggerPullWithAnimation(1)}
                     >
                       <div className="w-8 h-2 bg-orange-950 rounded-full absolute rotate-45" />
@@ -1353,7 +1353,7 @@ export default function JimiGachaModal({ userId, onClose, onItemUnlocked, isAdmi
                   {/* Status Tip */}
                   <div className="text-center">
                     <p className="text-[11px] font-extrabold text-orange-900 bg-orange-50/70 border border-orange-150 px-4 py-1.5 rounded-full inline-block leading-none select-none">
-                      {pulling ? "🎰 ガラガラ… 観測中" : "👈 ダイヤルか下のボタンを選んでね！"}
+                      {pulling ? t("🎰 ガラガラ… 観測中", "🎰 Spinning... Observing!") : t("👈 ダイヤルか下のボタンを選んでね！", "👈 Spin dial or tap buttons below!")}
                     </p>
                   </div>
 
@@ -1375,9 +1375,9 @@ export default function JimiGachaModal({ userId, onClose, onItemUnlocked, isAdmi
                         pulling && "cursor-not-allowed opacity-70"
                       )}
                     >
-                      <span className="text-[9px] font-black tracking-widest text-stone-400 uppercase">単発おためし</span>
+                      <span className="text-[9px] font-black tracking-widest text-stone-400 uppercase">{t('単発おためし', 'Try once')}</span>
                       <span className="text-sm font-bold mt-1.5 flex items-center gap-1 text-stone-700">
-                        <Play className="w-3.5 h-3.5 text-stone-600" /> 1回
+                        <Play className="w-3.5 h-3.5 text-stone-600" /> {t('1回', 'Draw 1')}
                       </span>
                       <span className="mt-3 bg-stone-900 text-white group-hover:bg-stone-950 px-3 py-1.5 rounded-xl text-[10px] font-black flex items-center gap-1 transition-colors shadow">
                         <Coins className="w-3.5 h-3.5 text-amber-300" />
@@ -1399,10 +1399,10 @@ export default function JimiGachaModal({ userId, onClose, onItemUnlocked, isAdmi
                         pulling && "cursor-not-allowed opacity-75"
                       )}
                     >
-                      <span className="absolute top-0 right-0 bg-amber-500 text-white text-[7px] font-black px-1.5 py-0.5 rounded-bl uppercase tracking-widest select-none">1回分お得!</span>
-                      <span className="text-[9px] font-black tracking-widest text-amber-600/75 uppercase">おまとめセット</span>
+                      <span className="absolute top-0 right-0 bg-amber-500 text-white text-[7px] font-black px-1.5 py-0.5 rounded-bl uppercase tracking-widest select-none">{t('1回分お得!', '1 Roll Free!')}</span>
+                      <span className="text-[9px] font-black tracking-widest text-amber-600/75 uppercase">{t('おまとめセット', 'Value Bundle')}</span>
                       <span className="text-sm font-black mt-1.5 flex items-center gap-1 text-amber-900">
-                        🌟 10連
+                        🌟 {t('10連', 'Draw 10')}
                       </span>
                       <span className="mt-3 bg-amber-500 text-white group-hover:bg-amber-600 px-3 py-1.5 rounded-xl text-[10px] font-black flex items-center gap-1 transition shadow-sm">
                         <Coins className="w-3.5 h-3.5 text-white" />
@@ -1425,10 +1425,10 @@ export default function JimiGachaModal({ userId, onClose, onItemUnlocked, isAdmi
                           pulling && "cursor-not-allowed opacity-75"
                         )}
                       >
-                        <span className="absolute top-0 right-0 bg-purple-600 text-white text-[7px] font-black px-1.5 py-0.5 rounded-bl uppercase tracking-widest select-none">レア保証!</span>
-                        <span className="text-[9px] font-black tracking-widest text-purple-650/70 uppercase">大人買い・極</span>
+                        <span className="absolute top-0 right-0 bg-purple-600 text-white text-[7px] font-black px-1.5 py-0.5 rounded-bl uppercase tracking-widest select-none">{t('レア保証!', 'Rare Guaranteed!')}</span>
+                        <span className="text-[9px] font-black tracking-widest text-purple-650/70 uppercase">{t('大人買い・極', 'Supreme Draw')}</span>
                         <span className="text-sm font-black mt-1.5 flex items-center gap-1 text-purple-900">
-                          🔥 50連
+                          🔥 {t('50連', 'Draw 50')}
                         </span>
                         <span className="mt-3 bg-purple-600 text-white group-hover:bg-purple-700 px-3 py-1.5 rounded-xl text-[10px] font-black flex items-center gap-1 transition shadow-sm">
                           <Coins className="w-3.5 h-3.5 text-white" />
@@ -1436,6 +1436,7 @@ export default function JimiGachaModal({ userId, onClose, onItemUnlocked, isAdmi
                         </span>
                       </motion.button>
                     )}
+
 
                   </div>
                 </div>

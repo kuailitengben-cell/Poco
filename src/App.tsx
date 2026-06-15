@@ -17,7 +17,8 @@ import {
   getDocFromServer,
   where,
   writeBatch,
-  limit
+  limit,
+  arrayUnion
 } from 'firebase/firestore';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { 
@@ -33,10 +34,17 @@ import {
 } from './lib/firebase';
 import { Scene, Comment, OperationType, FirestoreErrorInfo, Profile, Report, AdminMessage, Chat, Message, Announcement } from './types';
 import { cn } from './lib/utils';
+import { calculateFossilInfo } from './utils/fossilUtils';
+import { FossilizedContent } from './components/FossilizedContent';
+import FossilChipStation from './components/FossilChipStation';
 import JimiPlazaView from './components/JimiPlazaView';
+import { JseView } from './components/JseView';
+import KairanbanView from './components/KairanbanView';
 import TermsView from './components/TermsView';
 import PrivacyView from './components/PrivacyView';
 import GuidelinesView from './components/GuidelinesView';
+import { JimiLandingPage } from './components/JimiLandingPage';
+import WidgetView from './components/WidgetView';
 import { 
   MessageSquare, 
   ThumbsUp, 
@@ -88,9 +96,11 @@ import {
   GraduationCap,
   Heart,
   Gift,
+  Smile,
   Menu
 } from 'lucide-react';
 import { useLanguage } from './lib/LanguageContext';
+import BadgeDisplay from './components/BadgeDisplay';
 import { 
   calculateUserStats, 
   BADGES, 
@@ -113,6 +123,7 @@ import UnlocksCelebration from './components/UnlocksCelebration';
 import RarityTitle from './components/RarityTitle';
 import JimiGachaModal from './components/JimiGachaModal';
 import LoginBonusModal from './components/LoginBonusModal';
+import StickerSelector from './components/StickerSelector';
 import { TutorialModal } from './components/TutorialModal';
 import { RankingView } from './components/RankingView';
 import { getRangesForPeriod } from './utils/rankingDates';
@@ -124,8 +135,48 @@ import {
   earnFromUpvoteReceived, 
   handleDailyLoginReward,
   awardGachaItem,
-  registerDynamicGachaItem
+  registerDynamicGachaItem,
+  setProfileSynced
 } from './lib/gachaStore';
+
+export interface Sticker {
+  id: string;
+  name: string;
+  nameEn: string;
+  url: string;
+  category: 'popular' | 'reaction';
+}
+
+export const STICKERS: Sticker[] = [
+  {
+    id: 'sticker_naru',
+    name: 'なるほど',
+    nameEn: 'I see',
+    url: 'https://files.catbox.moe/ixiru0.png',
+    category: 'popular'
+  },
+  {
+    id: 'sticker_waka',
+    name: 'わかる',
+    nameEn: 'Relatable',
+    url: 'https://files.catbox.moe/yi7btt.png',
+    category: 'popular'
+  },
+  {
+    id: 'sticker_jimi',
+    name: '地味',
+    nameEn: 'Subtle',
+    url: 'https://files.catbox.moe/9zctoh.png',
+    category: 'reaction'
+  },
+  {
+    id: 'sticker_kusa',
+    name: '草',
+    nameEn: 'Lmao',
+    url: 'https://files.catbox.moe/jlbvbf.png',
+    category: 'reaction'
+  }
+];
 
 // --- Error Handling ---
 function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
@@ -169,9 +220,16 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
 
 export default function App() {
   const { language, setLanguage, t } = useLanguage();
+
+  // Widget mode check
+  const urlParams = new URLSearchParams(window.location.search);
+  const isWidgetMode = urlParams.get('widget') === '1';
+  const widgetUid = urlParams.get('uid');
+
   const [user, setUser] = useState<User | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [scenes, setScenes] = useState<Scene[]>([]);
+  const [displayLimit, setDisplayLimit] = useState(25);
   const [loading, setLoading] = useState(true);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showSubmit, setShowSubmit] = useState(false);
@@ -189,6 +247,9 @@ export default function App() {
       return false;
     }
   });
+
+  const [botLogs, setBotLogs] = useState<string[]>([]);
+  const [isSimulating, setIsSimulating] = useState(false);
 
   useEffect(() => {
     const handleQuotaChange = () => {
@@ -251,22 +312,26 @@ export default function App() {
     }
   };
   const [aiLoading, setAiLoading] = useState(false);
-  const [view, setView] = useState<'feed' | 'profile' | 'plaza' | 'terms' | 'privacy' | 'guidelines'>(() => {
+  const [view, setView] = useState<'feed' | 'profile' | 'plaza' | 'terms' | 'privacy' | 'guidelines' | 'about' | 'jse'>(() => {
     const path = window.location.pathname;
     if (path === '/terms') return 'terms';
     if (path === '/privacy') return 'privacy';
     if (path === '/guidelines') return 'guidelines';
     if (path === '/plaza') return 'plaza';
+    if (path === '/jse') return 'jse';
+    if (path === '/about' || path === '/welcome' || path === '/landing') return 'about';
     if (path === '/profile' || path.startsWith('/profile')) return 'profile';
     return 'feed';
   });
 
-  const handleViewChange = (newView: 'feed' | 'profile' | 'plaza' | 'terms' | 'privacy' | 'guidelines', profileId?: string | null) => {
+  const handleViewChange = (newView: 'feed' | 'profile' | 'plaza' | 'terms' | 'privacy' | 'guidelines' | 'about' | 'jse', profileId?: string | null) => {
     let path = '/';
     if (newView === 'terms') path = '/terms';
     else if (newView === 'privacy') path = '/privacy';
     else if (newView === 'guidelines') path = '/guidelines';
     else if (newView === 'plaza') path = '/plaza';
+    else if (newView === 'jse') path = '/jse';
+    else if (newView === 'about') path = '/about';
     else if (newView === 'profile') {
       path = profileId ? `/profile?uid=${profileId}` : '/profile';
     }
@@ -329,6 +394,9 @@ export default function App() {
       } else if (path === '/guidelines') {
         setView('guidelines');
         setSelectedScene(null);
+      } else if (path === '/about' || path === '/welcome' || path === '/landing') {
+        setView('about');
+        setSelectedScene(null);
       } else if (path === '/plaza') {
         setView('plaza');
         setSelectedScene(null);
@@ -349,31 +417,132 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const titleBase = " | 地味っち";
+    const titleBase = " | 地味っち (Jimicchi)";
     const metaDesc = document.querySelector('meta[name="description"]');
     
-    if (selectedScene) {
-      document.title = `${selectedScene.title}${titleBase}`;
-      if (metaDesc) metaDesc.setAttribute('content', `「${selectedScene.title}」 共感数: ${selectedScene.upvotes || 0} | 地味に共感できる日常のあるある投稿。地味っちで共感しよう。`);
-    } else if (view === 'terms') {
-      document.title = "利用規約" + titleBase;
-      if (metaDesc) metaDesc.setAttribute('content', "地味っちの利用規約です。当サービスをご利用いただくにあたっての条件について詳しく説明しています。");
-    } else if (view === 'privacy') {
-      document.title = "プライバシーポリシー" + titleBase;
-      if (metaDesc) metaDesc.setAttribute('content', "地味っちのプライバシーポリシーです。Googleログイン、Firebase Authentication、Cloud Firestore、Cloud Run、GCPなどの個人情報の安全な取り扱いについて説明しています。");
-    } else if (view === 'guidelines') {
-      document.title = "コミュニティガイドライン" + titleBase;
-      if (metaDesc) metaDesc.setAttribute('content', "地味っちのコミュニティガイドラインです。地味っちをみんなで気持ちよく、柔らかく楽しむためのマナーや考え方について説明しています。");
-    } else if (view === 'plaza') {
-      document.title = "地味ひろば" + titleBase;
-      if (metaDesc) metaDesc.setAttribute('content', "地味っち達が集まるイベント広場！様々なテーマの地味話で盛り上がりましょう。");
-    } else if (view === 'profile') {
-      document.title = "プロフィール" + titleBase;
-      if (metaDesc) metaDesc.setAttribute('content', "地味っちユーザーのプロフィールと、これまでに投稿された地味な日常。");
-    } else {
-      document.title = "地味っち | 地味に共感するSNS";
-      if (metaDesc) metaDesc.setAttribute('content', "日々の地味な出来事、小さなこだわり、どうでもいい日常を投稿して『地味な共感』を分かち合う、最高に優しいコミュニティSNS。");
+    // Ensure keywords meta tag exists
+    let metaKeywords = document.querySelector('meta[name="keywords"]');
+    if (!metaKeywords) {
+      metaKeywords = document.createElement('meta');
+      metaKeywords.setAttribute('name', 'keywords');
+      document.head.appendChild(metaKeywords);
     }
+    
+    // Dynamic OGP helper
+    const updateOGTag = (property: string, content: string) => {
+      let el = document.head.querySelector(`meta[property="${property}"]`);
+      if (!el) {
+        el = document.createElement('meta');
+        el.setAttribute('property', property);
+        document.head.appendChild(el);
+      }
+      el.setAttribute('content', content);
+    };
+
+    // Dynamic Twitter Cards helper
+    const updateTwitterTag = (name: string, content: string) => {
+      let el = document.head.querySelector(`meta[name="${name}"]`);
+      if (!el) {
+        el = document.createElement('meta');
+        el.setAttribute('name', name);
+        document.head.appendChild(el);
+      }
+      el.setAttribute('content', content);
+    };
+
+    let titleText = "地味っち - 地味に共感するSNS | ささやかな日常を愛するあるあるSNS";
+    let descText = "日々の地味な出来事、小さなこだわり、どうでもいい日常を投稿して『地味な共感』を分かち合う、最高に優しいコミュニティSNS。高校生が開発した地味っち（Jimicchi）。";
+    let typeText = "website";
+    let urlText = window.location.origin;
+    let schemaJson: any = null;
+
+    if (selectedScene) {
+      titleText = `「${selectedScene.title}」 ささやかなあるある投稿${titleBase}`;
+      descText = `「${selectedScene.title}」 共感数: ${selectedScene.upvotes || 0} | 地味に共感できる日常のあるある投稿です。地味っちでゆったり共感しよう。`;
+      typeText = "article";
+      urlText = `${window.location.origin}/?sceneId=${selectedScene.id}`;
+      
+      schemaJson = {
+        "@context": "https://schema.org",
+        "@type": "SocialMediaPosting",
+        "headline": selectedScene.title,
+        "datePublished": selectedScene.createdAt ? new Date(selectedScene.createdAt.toMillis()).toISOString() : new Date().toISOString(),
+        "author": {
+          "@type": "Person",
+          "name": selectedScene.authorName || "地味っちユーザー"
+        },
+        "description": descText,
+        "url": urlText,
+        "interactionStatistic": {
+          "@type": "InteractionCounter",
+          "interactionType": "https://schema.org/LikeAction",
+          "userInteractionCount": selectedScene.upvotes || 0
+        }
+      };
+    } else if (view === 'terms') {
+      titleText = "利用規約" + titleBase;
+      descText = "地味っちの利用規約です。当サービスをご利用いただくにあたっての条件について詳しく説明しています。";
+    } else if (view === 'privacy') {
+      titleText = "プライバシーポリシー" + titleBase;
+      descText = "地味っちのプライバシーポリシーです。Googleログイン、Firebase Authentication、Cloud Firestore、GCPなどの個人情報の安全な取り扱いについて説明しています。";
+    } else if (view === 'guidelines') {
+      titleText = "コミュニティガイドライン" + titleBase;
+      descText = "地味っちのコミュニティガイドラインです。地味っちをみんなで気持ちよく、柔らかく楽しむためのマナーや考え方について説明しています。";
+    } else if (view === 'about') {
+      titleText = "地味っちについて (About Jimicchi)" + titleBase;
+      descText = "高校生が開発した『地味に共感するSNS』地味っち（Jimicchi）の紹介サイト・公式ホームページ。詳しい使い方、特徴や魅力を紹介。";
+    } else if (view === 'plaza') {
+      titleText = "地味ひろば - イベント・ハイク・川柳・ダジャレ" + titleBase;
+      descText = "地味っち達が集まるイベント広場！様々なテーマの地味話、地味俳句、ダジャレ、地味電子書籍をお楽しみください。";
+    } else if (view === 'profile') {
+      titleText = "プロフィール" + titleBase;
+      descText = "地味っちユーザーのプロフィールと、これまでに投稿された地味な日常一覧。";
+    }
+
+    document.title = titleText;
+    if (metaDesc) metaDesc.setAttribute('content', descText);
+    metaKeywords.setAttribute('content', "地味っち, Jimicchi, SNS, あるある, 共感, 高校生開発, 個人開発, クリエイター支援, 投げ銭, ブログパーツ, はてなブログ, WordPress, SEO, 被リンク");
+
+    // Dynamic OGP
+    updateOGTag('og:title', titleText);
+    updateOGTag('og:description', descText);
+    updateOGTag('og:type', typeText);
+    updateOGTag('og:url', urlText);
+    updateOGTag('og:site_name', '地味っち');
+    updateOGTag('og:image', 'https://api.dicebear.com/7.x/fun-emoji/svg?seed=jimicchi_seo_og_v3');
+    
+    // Twitter Card
+    updateTwitterTag('twitter:card', 'summary_large_image');
+    updateTwitterTag('twitter:title', titleText);
+    updateTwitterTag('twitter:description', descText);
+    updateTwitterTag('twitter:image', 'https://api.dicebear.com/7.x/fun-emoji/svg?seed=jimicchi_seo_og_v3');
+
+    // JSON-LD Structured Data
+    if (!schemaJson) {
+      schemaJson = {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "地味っち",
+        "alternateName": "Jimicchi",
+        "url": window.location.origin,
+        "description": descText,
+        "potentialAction": {
+          "@type": "SearchAction",
+          "target": `${window.location.origin}/?search={search_term_string}`,
+          "query-input": "required name=search_term_string"
+        }
+      };
+    }
+
+    let ldScript = document.getElementById('jimicchi-seo-jsonld') as HTMLScriptElement;
+    if (!ldScript) {
+      ldScript = document.createElement('script');
+      ldScript.id = 'jimicchi-seo-jsonld';
+      ldScript.type = 'application/ld+json';
+      document.head.appendChild(ldScript);
+    }
+    ldScript.textContent = JSON.stringify(schemaJson);
+
   }, [view, selectedScene]);
   const [profiles, setProfiles] = useState<Record<string, Profile>>({});
   const [copyToastVisible, setCopyToastVisible] = useState(false);
@@ -620,6 +789,9 @@ export default function App() {
   const [showUserSearch, setShowUserSearch] = useState(false);
 
   const [showGachaModal, setShowGachaModal] = useState(false);
+  const [showSupportLinkModal, setShowSupportLinkModal] = useState(false);
+  const [supportLinkInput, setSupportLinkInput] = useState('');
+  const [supportLinkLoading, setSupportLinkLoading] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [gachaRevision, setGachaRevision] = useState(0);
   const [loginRewardDetails, setLoginRewardDetails] = useState<null | { streak: number; coins: number; milestone: boolean }>(null);
@@ -655,6 +827,93 @@ export default function App() {
       window.removeEventListener('focus', updateTodayStr);
     };
   }, []);
+
+  // Deep Link handler for user profile redirection from widgets or referral links
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const targetUid = params.get('uid') || params.get('from_widget') || params.get('profile') || params.get('ref');
+    if (targetUid) {
+      setViewedProfileId(targetUid);
+      setView('profile');
+      try {
+        sessionStorage.setItem('jimicchi_referred_by_uid', targetUid);
+      } catch (_) {}
+    }
+  }, []);
+
+  // Automated BOT simulation loop - now staggered and slowed down per bot persona to look realistic and lower API stress
+  useEffect(() => {
+    if (!isAdmin || !user) return;
+
+    const botUids = ["bot_tanaka", "bot_yuka", "bot_satoshy", "bot_jimi_taro", "bot_sleepy_mimi"];
+    
+    const activeTimeouts: NodeJS.Timeout[] = [];
+    const activeIntervals: NodeJS.Timeout[] = [];
+
+    botUids.forEach((botId, index) => {
+      // 1. Initial staggered delays so bots start at completely different moments
+      // Tanaka: 15s, Yuka: 50s, Satoshy: 85s, JimiTaro: 120s, Mimi: 155s
+      const offsetDelay = 15000 + index * 35000;
+
+      const triggerThisBot = async () => {
+        try {
+          await triggerBotSimulation(botId);
+        } catch (err) {
+          console.error(`Automated background active trigger for ${botId} failed:`, err);
+        }
+      };
+
+      const delayTimeout = setTimeout(() => {
+        triggerThisBot();
+
+        // 2. Set individual slow-paced intervals: each bot operates every 180s to 320s (approx 3 to 5.3 minutes)
+        // Add random dispersion so their periods are coprime / staggered permanently
+        const slowPeriod = 180000 + (index * 25000) + Math.floor(Math.random() * 20000);
+        
+        const botInterval = setInterval(triggerThisBot, slowPeriod);
+        activeIntervals.push(botInterval);
+
+      }, offsetDelay);
+
+      activeTimeouts.push(delayTimeout);
+    });
+
+    return () => {
+      activeTimeouts.forEach(clearTimeout);
+      activeIntervals.forEach(clearInterval);
+    };
+  }, [isAdmin, user]);
+
+  // Sync Support Link input with user profile
+  useEffect(() => {
+    if (userProfile) {
+      setSupportLinkInput(userProfile.supportLink || '');
+    }
+  }, [userProfile]);
+
+  const handleGlobalUpdateSupportLink = async (newLink: string) => {
+    if (!user) return;
+    setSupportLinkLoading(true);
+    try {
+      const myProfileRef = doc(db, 'profiles', user.uid);
+      await updateDoc(myProfileRef, {
+        supportLink: newLink.trim() || null
+      });
+
+      setUserProfile(prev => prev ? {
+        ...prev,
+        supportLink: newLink.trim() || undefined
+      } : null);
+
+      alert(t('おやつの差し入れ先（支援URL）を更新しました！🎁', 'Your support/tip link has been updated successfully!🎁'));
+      setShowSupportLinkModal(false);
+    } catch (err: any) {
+      console.error("Failed to update support link globally:", err);
+      alert(t('おやつ差し入れ先の更新に失敗しました: ', 'Failed to update support link: ') + err.message);
+    } finally {
+      setSupportLinkLoading(false);
+    }
+  };
 
   // Reactive transitions for interactive tutorial
   useEffect(() => {
@@ -880,6 +1139,8 @@ export default function App() {
       }
     });
 
+    let unsubscribeProfile: (() => void) | null = null;
+
     // Fetch profile
     const fetchProfile = async () => {
       const profileRef = doc(db, 'profiles', user.uid);
@@ -890,6 +1151,43 @@ export default function App() {
       if (profileSnap.exists()) {
         const data = profileSnap.data();
         const updateData: any = { lastActiveAt: now };
+
+        // Ensure JSE data exists / migrate from offline storage
+        if (data.jCoins === undefined) {
+          const key = `jse_jcoins_v1_${user.uid}`;
+          const saved = localStorage.getItem(key);
+          updateData.jCoins = saved ? parseInt(saved, 10) : 5000;
+        }
+        if (data.jseHoldings === undefined) {
+          const key = `jse_holdings_v1_${user.uid}`;
+          const saved = localStorage.getItem(key);
+          if (saved) {
+            try {
+              updateData.jseHoldings = JSON.parse(saved);
+            } catch (e) {
+              console.warn("Failed to parse JSE holdings for migration:", e);
+            }
+          }
+        }
+        if (data.jseRealizedPnL === undefined) {
+          const key = `jse_realized_v1_${user.uid}`;
+          const saved = localStorage.getItem(key);
+          if (saved) {
+            updateData.jseRealizedPnL = parseFloat(saved) || 0;
+          }
+        }
+        if (data.jseUnlockedAchievements === undefined) {
+          const key = `jse_unlocked_achievements_v1_${user.uid}`;
+          const saved = localStorage.getItem(key);
+          if (saved) {
+            try {
+              updateData.jseUnlockedAchievements = JSON.parse(saved);
+            } catch (e) {
+              console.warn("Failed to parse JSE achievements for migration:", e);
+            }
+          }
+        }
+
         // If profile exists but name is '名無しさん' and user has a displayName, update it
         if (data.displayName === '名無しさん' && user.displayName) {
           updateData.displayName = user.displayName;
@@ -902,6 +1200,55 @@ export default function App() {
           setShowTutorial(true);
         }
       } else {
+        const keyCoins = `jse_jcoins_v1_${user.uid}`;
+        const savedCoins = localStorage.getItem(keyCoins);
+        const startJCoinsRaw = savedCoins ? parseInt(savedCoins, 10) : 5000;
+
+        const keyHoldings = `jse_holdings_v1_${user.uid}`;
+        const savedHoldings = localStorage.getItem(keyHoldings);
+        let startHoldings = {};
+        if (savedHoldings) {
+          try { startHoldings = JSON.parse(savedHoldings); } catch(_) {}
+        }
+
+        const keyRealized = `jse_realized_v1_${user.uid}`;
+        const savedRealized = localStorage.getItem(keyRealized);
+        const startRealized = savedRealized ? parseFloat(savedRealized) : 0;
+
+        const keyAch = `jse_unlocked_achievements_v1_${user.uid}`;
+        const savedAch = localStorage.getItem(keyAch);
+        let startAch = [];
+        if (savedAch) {
+          try { startAch = JSON.parse(savedAch); } catch(_) {}
+        }
+
+        let startJCoins = startJCoinsRaw;
+        let referralCodeUsed: string | undefined = undefined;
+        let referredBy = '';
+        try {
+          referredBy = sessionStorage.getItem('jimicchi_referred_by_uid') || '';
+        } catch (_) {}
+
+        if (referredBy && referredBy !== user.uid) {
+          try {
+            startJCoins = startJCoinsRaw + 3000;
+            referralCodeUsed = referredBy;
+            
+            // Queue reward for friend
+            await addDoc(collection(db, 'admin_messages'), {
+              recipientId: referredBy,
+              senderId: user.uid,
+              senderName: user.displayName || 'お友達 (Your friend)',
+              content: `REFERRAL_BONUS_3000`,
+              type: 'referral_claim',
+              createdAt: serverTimestamp(),
+              read: false
+            });
+          } catch(err) {
+            console.error("Failed to add initial referral message:", err);
+          }
+        }
+
         const newProfile: any = {
           displayName: user.displayName || '名無しさん',
           photoURL: user.photoURL || `https://api.dicebear.com/7.x/bottts/svg?seed=${user.uid}`,
@@ -916,11 +1263,25 @@ export default function App() {
           celebratedPrefixIds: [],
           celebratedSuffixIds: [],
           coins: 500,
-          shards: 0
+          shards: 0,
+          jCoins: startJCoins,
+          jseHoldings: startHoldings,
+          jseRealizedPnL: startRealized,
+          jseUnlockedAchievements: startAch
         };
+        if (referralCodeUsed) {
+          newProfile.referralCodeUsed = referralCodeUsed;
+        }
+
         await setDoc(profileRef, newProfile);
         finalProfileData = { uid: user.uid, ...newProfile };
         setShowTutorial(true);
+
+        if (referralCodeUsed) {
+          setTimeout(() => {
+            alert(`🎉 地味っちへようこそ！お友達から招待されました！\nお祝いに【3,000 J-Coin】プレゼントが追加で適用され、合計 ${startJCoins} コインでスタートしました！🎰\nさっそく地味ガチャを引いてみましょう！`);
+          }, 1500);
+        }
       }
 
       // Sync and restore Gacha & celebrated states from Firestore to local storage
@@ -970,28 +1331,37 @@ export default function App() {
           unlockedSuffixIds,
           unlockedBadgeIds,
           lastActionDate: finalProfileData.lastLoginDate || localState.lastActionDate || '',
-          lastLoginDate: finalProfileData.lastLoginDate || localState.lastLoginDate || '',
+          lastLoginDate: finalProfileData.lastLoginDate || localState.lastActionDate || '',
           loginStreak: finalProfileData.loginStreak !== undefined ? finalProfileData.loginStreak : (localState.loginStreak || 0)
         };
         localStorage.setItem(lsKey, JSON.stringify(mergedState));
 
-        // Restore celebrated lists
+        // Restore celebrated lists with robust try/catch
         const celebratedBadgesKey = `jimicchi_celebrated_badges_${user.uid}`;
         const celebratedPrefixesKey = `jimicchi_celebrated_prefixes_${user.uid}`;
         const celebratedSuffixesKey = `jimicchi_celebrated_suffixes_${user.uid}`;
 
+        let localB: string[] = [];
         const rawB = localStorage.getItem(celebratedBadgesKey);
-        const localB = rawB ? JSON.parse(rawB) : [];
+        if (rawB) {
+          try { localB = JSON.parse(rawB) || []; } catch(_) {}
+        }
         const mergedB = Array.from(new Set([...localB, ...(finalProfileData.celebratedBadgeIds || [])]));
         localStorage.setItem(celebratedBadgesKey, JSON.stringify(mergedB));
 
+        let localP: string[] = [];
         const rawP = localStorage.getItem(celebratedPrefixesKey);
-        const localP = rawP ? JSON.parse(rawP) : [];
+        if (rawP) {
+          try { localP = JSON.parse(rawP) || []; } catch(_) {}
+        }
         const mergedP = Array.from(new Set([...localP, ...(finalProfileData.celebratedPrefixIds || [])]));
         localStorage.setItem(celebratedPrefixesKey, JSON.stringify(mergedP));
 
+        let localS: string[] = [];
         const rawS = localStorage.getItem(celebratedSuffixesKey);
-        const localS = rawS ? JSON.parse(rawS) : [];
+        if (rawS) {
+          try { localS = JSON.parse(rawS) || []; } catch(_) {}
+        }
         const mergedS = Array.from(new Set([...localS, ...(finalProfileData.celebratedSuffixIds || [])]));
         localStorage.setItem(celebratedSuffixesKey, JSON.stringify(mergedS));
 
@@ -1007,25 +1377,33 @@ export default function App() {
           shards
         });
 
-        // Update final profile data with newly merged values for local State consistency
-        finalProfileData = {
-          ...finalProfileData,
-          unlockedPrefixIds,
-          unlockedSuffixIds,
-          unlockedBadgeIds,
-          celebratedBadgeIds: mergedB,
-          celebratedPrefixIds: mergedP,
-          celebratedSuffixIds: mergedS,
-          coins,
-          shards
-        };
+        // Mark profile as fully synchronized to enable future Firestore writes from saveGachaState
+        setProfileSynced(user.uid, true);
 
-        setUserProfile(finalProfileData as Profile);
+        // Set up real-time listener on the current user's profile doc so edits on badges, titles, coins, names etc. sync instantly
+        unsubscribeProfile = onSnapshot(profileRef, (snap) => {
+          if (snap.exists()) {
+            const freshData = snap.data() as Profile;
+            setUserProfile({ uid: user.uid, ...freshData });
+          }
+        }, (error) => {
+          console.warn("Real-time profile listener failed:", error);
+        });
+
         setGachaRevision(prev => prev + 1);
       } catch (err) {
         console.error("Gacha state restore error in fetchProfile:", err);
-        // Fallback to update state if restoration fails
-        setUserProfile(finalProfileData as Profile);
+        // Fallback: unlock Firestore writes is also marked here
+        setProfileSynced(user.uid, true);
+        // Fallback or backup real-time listener if synchronization steps fail
+        unsubscribeProfile = onSnapshot(profileRef, (snap) => {
+          if (snap.exists()) {
+            const freshData = snap.data() as Profile;
+            setUserProfile({ uid: user.uid, ...freshData });
+          }
+        }, (error) => {
+          console.warn("Real-time profile fallback listener failed:", error);
+        });
       }
     };
 
@@ -1052,6 +1430,9 @@ export default function App() {
     return () => {
       unsubscribeUpvotes();
       unsubscribeAdmin();
+      if (unsubscribeProfile) {
+        unsubscribeProfile();
+      }
     };
   }, [user]);
 
@@ -1212,6 +1593,7 @@ export default function App() {
 
   // Fetch Scenes
   useEffect(() => {
+    setDisplayLimit(25);
     let q = query(collection(db, 'scenes'), orderBy(sortMode === 'latest' ? 'createdAt' : 'upvotes', 'desc'));
     
     // Firestore only supports one array-contains per query.
@@ -1481,6 +1863,49 @@ export default function App() {
       const msgData: AdminMessage[] = [];
       snapshot.forEach(doc => {
         msgData.push({ id: doc.id, ...doc.data() } as AdminMessage);
+      });
+
+      // 招待コード（Referral Code）によるアトミック加算セルフ受け取り処理（初回起動時・追加時の双方で動作）
+      snapshot.docChanges().forEach(change => {
+        if (change.type === 'added') {
+          const data = change.doc.data();
+          if (data && !data.read && data.type === 'referral_claim') {
+            const claimReferral = async () => {
+              try {
+                const myProfileRef = doc(db, 'profiles', user.uid);
+                await updateDoc(myProfileRef, {
+                  jCoins: increment(3000)
+                });
+                await updateDoc(doc(db, 'admin_messages', change.doc.id), {
+                  read: true
+                });
+                const senderName = data.senderName || t('お友達', 'Your friend');
+                alert(t(`🎉 おめでとうございます！\n${senderName}さんがあなたの招待コード（ユーザーID）を使ってくれました！\nお二人にお祝いの【3,000 J-Coin】がプレゼントされました！🎰\n地味ガチャに挑戦してみましょう！`, `🎉 Congratulations!\n${senderName} used your referral code (User ID)!\nYou both received 【3,000 J-Coins】!🎰\nLet's try Jimi Gacha!`));
+              } catch (err) {
+                console.error("Failed to process referral claim reward:", err);
+              }
+            };
+            claimReferral();
+          } else if (data && !data.read && data.type === 'kairanban_reward') {
+            const claimKairanban = async () => {
+              try {
+                const rewardCoins = data.rewardCoins || 10;
+                const myProfileRef = doc(db, 'profiles', user.uid);
+                await updateDoc(myProfileRef, {
+                  jCoins: increment(rewardCoins),
+                  coins: increment(rewardCoins)
+                });
+                await updateDoc(doc(db, 'admin_messages', change.doc.id), {
+                  read: true
+                });
+                console.log(`[KAIRANBAN CLAIM] Successfully processed reward of +${rewardCoins}J for user ${user.uid}`);
+              } catch (err) {
+                console.error("Failed to process kairanban claim reward:", err);
+              }
+            };
+            claimKairanban();
+          }
+        }
       });
 
       // If it is not the first load (to avoid alerts for history on page refresh), intercept added unreads
@@ -1772,6 +2197,22 @@ export default function App() {
           const relatedScene = scenes.find(s => s.id === sceneId);
           if (relatedScene && relatedScene.authorId && relatedScene.authorId !== user.uid) {
             earnFromUpvoteReceived(relatedScene.authorId);
+
+            // Get sender profile display name
+            const profileRef = doc(db, 'profiles', user.uid);
+            const profileSnap = await getDoc(profileRef).catch(() => null);
+            const profileData = profileSnap?.exists() ? profileSnap.data() : null;
+            const senderName = profileData?.displayName || user.displayName || '誰か';
+
+            await addDoc(collection(db, 'admin_messages'), {
+              recipientId: relatedScene.authorId,
+              senderId: user.uid,
+              content: `👍 ${senderName}さんがあなたの地味話「${relatedScene.title}」に「地味に共感！」しました。`,
+              createdAt: serverTimestamp(),
+              read: false,
+              sceneId,
+              type: 'upvote'
+            });
           }
           setGachaRevision(p => p + 1);
           if (tutorialStep === 1) {
@@ -1793,6 +2234,84 @@ export default function App() {
       // Re-throw handled errors or catch unexpected ones
       if (error instanceof Error && error.message.startsWith('{')) throw error;
       handleFirestoreError(error, OperationType.WRITE, `upvotes_flow/${sceneId}`);
+    }
+  };
+
+  const handleToggleSceneSticker = async (sceneId: string, stickerId: string) => {
+    if (!user) {
+      handleLogin();
+      return;
+    }
+    try {
+      const sceneRef = doc(db, 'scenes', sceneId);
+      const sceneSnap = await getDoc(sceneRef);
+      if (!sceneSnap.exists()) return;
+      const sceneData = sceneSnap.data() as Scene;
+      const stickers = { ...(sceneData.stickers || {}) };
+      const uids = stickers[stickerId] ? [...stickers[stickerId]] : [];
+      const index = uids.indexOf(user.uid);
+      if (index > -1) {
+        uids.splice(index, 1);
+      } else {
+        uids.push(user.uid);
+
+        // Notify the author of the scene
+        if (sceneData.authorId && sceneData.authorId !== user.uid) {
+          const profileRef = doc(db, 'profiles', user.uid);
+          const profileSnap = await getDoc(profileRef).catch(() => null);
+          const profileData = profileSnap?.exists() ? profileSnap.data() : null;
+          const senderName = profileData?.displayName || user.displayName || '誰か';
+
+          const stickerEmoji = stickerId.startsWith('st_') ? '✨' : stickerId;
+
+          await addDoc(collection(db, 'admin_messages'), {
+            recipientId: sceneData.authorId,
+            senderId: user.uid,
+            content: `✨ ${senderName}さんがあなたの地味話「${sceneData.title}」にスタンプ [${stickerEmoji}] を送りました。`,
+            createdAt: serverTimestamp(),
+            read: false,
+            sceneId,
+            type: 'sticker'
+          });
+        }
+      }
+      if (uids.length === 0) {
+        delete stickers[stickerId];
+      } else {
+        stickers[stickerId] = uids;
+      }
+      await updateDoc(sceneRef, { stickers });
+    } catch (err: any) {
+      handleFirestoreError(err, OperationType.UPDATE, `scenes/${sceneId}/stickers`);
+    }
+  };
+
+  const handleToggleCommentSticker = async (sceneId: string, commentId: string, stickerId: string) => {
+    if (!user) {
+      handleLogin();
+      return;
+    }
+    try {
+      const commentRef = doc(db, 'scenes', sceneId, 'comments', commentId);
+      const commentSnap = await getDoc(commentRef);
+      if (!commentSnap.exists()) return;
+      const commentData = commentSnap.data();
+      const stickers = { ...(commentData.stickers || {}) };
+      const uids = stickers[stickerId] ? [...stickers[stickerId]] : [];
+      const index = uids.indexOf(user.uid);
+      if (index > -1) {
+        uids.splice(index, 1);
+      } else {
+        uids.push(user.uid);
+      }
+      if (uids.length === 0) {
+        delete stickers[stickerId];
+      } else {
+        stickers[stickerId] = uids;
+      }
+      await updateDoc(commentRef, { stickers });
+    } catch (err: any) {
+      handleFirestoreError(err, OperationType.UPDATE, `scenes/${sceneId}/comments/${commentId}/stickers`);
     }
   };
 
@@ -1894,7 +2413,282 @@ export default function App() {
     }
   };
 
+  const triggerBotSimulation = async (botId?: string) => {
+    setIsSimulating(true);
+    try {
+      // 1. Fetch recent scenes and surveys from client-side Firestore safely
+      const scenesSnap = await getDocs(query(collection(db, "scenes"), orderBy("createdAt", "desc"), limit(80)));
+      const recentScenes = scenesSnap.docs.map(d => {
+        const dData = d.data() as any;
+        return {
+          id: d.id,
+          title: dData.title || "",
+          content: dData.content || "",
+          authorId: dData.authorId || ""
+        };
+      });
+
+      const surveysSnap = await getDocs(query(collection(db, "plaza_surveys"), orderBy("createdAt", "desc"), limit(10)));
+      const recentSurveys = surveysSnap.docs.map(d => {
+        const dData = d.data() as any;
+        return {
+          id: d.id,
+          question: dData.question || ""
+        };
+      });
+
+      // 2. Fetch bot action proposal dynamically from backend
+      const response = await fetch("/api/admin/trigger-bot", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recentScenes, recentSurveys, botId })
+      });
+      const resData = await response.json();
+
+      if (!resData.success) {
+        setBotLogs(prev => [
+          `[${new Date().toLocaleTimeString()}] エラー: ${resData.reason || "シミュレーション案の生成に失敗しました。"}`,
+          ...prev
+        ]);
+        return;
+      }
+
+      const { actionType, bot, data, targetSceneId, targetSceneTitle, targetSurveyId, targetSurveyQuestion } = resData;
+
+      // 3. Auto Seed/Ensure Bot Profile exists locally before performing activity
+      const botProfileRef = doc(db, "profiles", bot.uid);
+      const botProfileSnap = await getDoc(botProfileRef);
+      if (!botProfileSnap.exists()) {
+        await setDoc(botProfileRef, {
+          displayName: bot.displayName,
+          photoURL: bot.photoURL,
+          bio: bot.bio,
+          coins: bot.coins || 5000,
+          shards: 10,
+          equippedBadges: bot.equippedBadges || [],
+          unlockedBadgeIds: bot.equippedBadges || [],
+          registeredAt: serverTimestamp(),
+          isBot: true
+        });
+        setBotLogs(prev => [`[${new Date().toLocaleTimeString()}] [SEED] ${bot.displayName}のボットプロフィールを新規登録しました。`, ...prev]);
+      }
+
+      // 4. Securely process client-side operations mapped by role rules
+      if (actionType === "scene") {
+        const sceneId = "scene_bot_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
+        
+        await setDoc(doc(db, "scenes", sceneId), {
+          title: data.title,
+          content: data.content,
+          category: data.category || "Everyday",
+          hashtags: data.hashtags || [],
+          authorId: bot.uid,
+          authorName: bot.displayName,
+          authorPhoto: bot.photoURL,
+          createdAt: serverTimestamp(),
+          upvotes: 0,
+          views: 0,
+          commentCount: 0,
+          profileVisits: 0,
+          isBot: true
+        });
+
+        if (data.matchedStockId) {
+          await addDoc(collection(db, "jse_reports"), {
+            stockId: data.matchedStockId,
+            explanation: data.explanation || `「${data.title}」の投稿が検知されました。`,
+            postId: sceneId,
+            postTitle: data.title,
+            authorName: bot.displayName,
+            createdAt: serverTimestamp()
+          });
+        }
+
+        setBotLogs(prev => [
+          `[${new Date().toLocaleTimeString()}] 📝 【${bot.displayName}】が新着地味話を投稿: 「${data.title}」${data.matchedStockId ? ` (JSE連動: ${data.matchedStockId})` : ""}`,
+          ...prev
+        ]);
+
+      } else if (actionType === "comment") {
+        await addDoc(collection(doc(db, "scenes", targetSceneId), "comments"), {
+          sceneId: targetSceneId,
+          authorId: bot.uid,
+          authorName: bot.displayName,
+          authorPhoto: bot.photoURL,
+          content: data.content,
+          createdAt: serverTimestamp()
+        });
+
+        await updateDoc(doc(db, "scenes", targetSceneId), {
+          commentCount: increment(1)
+        });
+
+        setBotLogs(prev => [
+          `[${new Date().toLocaleTimeString()}] 💬 【${bot.displayName}】がコメント: 「${data.content}」 -> 対象:「${targetSceneTitle}」`,
+          ...prev
+        ]);
+
+      } else if (actionType === "jse_trade") {
+        await addDoc(collection(db, "jse_global_trades"), {
+          stockId: data.stockId,
+          qty: data.qty,
+          type: data.type,
+          userId: bot.uid,
+          createdAt: serverTimestamp()
+        });
+
+        const coinDelta = data.type === "buy" ? -(data.qty * 10) : (data.qty * 10);
+        await updateDoc(botProfileRef, {
+          coins: increment(coinDelta)
+        });
+
+        setBotLogs(prev => [
+          `[${new Date().toLocaleTimeString()}] 📈 【${bot.displayName}】が株式売買: ${data.type === "buy" ? "買い" : "売り"} ${data.qty}株 [${data.stockId}]`,
+          ...prev
+        ]);
+
+      } else if (actionType === "upvote") {
+        const key = `${bot.uid}_${targetSceneId}`;
+        const voteRef = doc(db, "upvotes", key);
+        const voteSnap = await getDoc(voteRef);
+
+        if (!voteSnap.exists()) {
+          await setDoc(voteRef, {
+            userId: bot.uid,
+            sceneId: targetSceneId,
+            createdAt: serverTimestamp()
+          });
+
+          await updateDoc(doc(db, "scenes", targetSceneId), {
+            upvotes: increment(1)
+          });
+
+          setBotLogs(prev => [
+            `[${new Date().toLocaleTimeString()}] ❤️ 【${bot.displayName}】が「${targetSceneTitle}」に『地味に共感！』しました。`,
+            ...prev
+          ]);
+        } else {
+          setBotLogs(prev => [
+            `[${new Date().toLocaleTimeString()}] ⚠️ 【${bot.displayName}】はすでに「${targetSceneTitle}」に共感済みです。`,
+            ...prev
+          ]);
+        }
+
+      } else if (actionType === "kairanban") {
+        const sceneRef = doc(db, "scenes", targetSceneId);
+        const sceneSnap = await getDoc(sceneRef);
+        if (sceneSnap.exists()) {
+          const sceneData = sceneSnap.data();
+          const currentKairanUsers = sceneData?.kairanUsers || [];
+          if (!currentKairanUsers.includes(bot.uid)) {
+            const coinsSpent = data.coinsSpent || 20;
+            const rewardCoins = Math.floor(coinsSpent * 0.5);
+
+            await updateDoc(botProfileRef, {
+              jCoins: increment(-coinsSpent),
+              coins: increment(-coinsSpent)
+            });
+
+            await updateDoc(sceneRef, {
+              kairanAmount: increment(coinsSpent),
+              kairanCount: increment(1),
+              kairanUsers: arrayUnion(bot.uid)
+            });
+
+            await addDoc(collection(db, "admin_messages"), {
+              recipientId: sceneData.authorId,
+              senderId: "system_kairanban",
+              senderName: "回覧板システム",
+              content: `誰かがあなたの投稿「${sceneData.title || '（無題）'}」を回覧板に回しました 📌 +${rewardCoins}コイン`,
+              type: "kairanban_reward",
+              rewardCoins: rewardCoins,
+              createdAt: serverTimestamp(),
+              read: false
+            });
+
+            setBotLogs(prev => [
+              `[${new Date().toLocaleTimeString()}] 📌 【${bot.displayName}】が「${targetSceneTitle}」を回覧板に回しました（消費: ${coinsSpent}コイン、投稿主獲得: +${rewardCoins}コイン）。`,
+              ...prev
+            ]);
+          } else {
+            setBotLogs(prev => [
+              `[${new Date().toLocaleTimeString()}] ⚠️ 【${bot.displayName}】はすでに「${targetSceneTitle}」を回覧板に回しています。`,
+              ...prev
+            ]);
+          }
+        }
+
+      } else if (actionType === "plaza_vote") {
+        const voteRef = doc(collection(doc(db, "plaza_surveys", targetSurveyId), "votes"), bot.uid);
+        const voteSnap = await getDoc(voteRef);
+
+        if (!voteSnap.exists()) {
+          await setDoc(voteRef, {
+            choice: data.choice,
+            votedAt: serverTimestamp()
+          });
+
+          await updateDoc(doc(db, "plaza_surveys", targetSurveyId), {
+            [data.choice === "yes" ? "yesVotes" : "noVotes"]: increment(1)
+          });
+
+          setBotLogs(prev => [
+            `[${new Date().toLocaleTimeString()}] 🗳️ 【${bot.displayName}】が広場アンケート「${targetSurveyQuestion}」に【${data.choice === "yes" ? "あるある(はい)" : "ないない(いいえ)"}】で投票しました。`,
+            ...prev
+          ]);
+        } else {
+          setBotLogs(prev => [
+            `[${new Date().toLocaleTimeString()}] ⚠️ 【${bot.displayName}】はすでに「${targetSurveyQuestion}」に回答済みです。`,
+            ...prev
+          ]);
+        }
+
+      } else if (actionType === "plaza_survey") {
+        await addDoc(collection(db, "plaza_surveys"), {
+          question: data.question,
+          authorId: bot.uid,
+          authorName: bot.displayName,
+          authorPhoto: bot.photoURL,
+          yesVotes: 0,
+          noVotes: 0,
+          createdAt: serverTimestamp()
+        });
+
+        setBotLogs(prev => [
+          `[${new Date().toLocaleTimeString()}] 📊 【${bot.displayName}】が新しい広場お題アンケートを作成しました: 「${data.question}」`,
+          ...prev
+        ]);
+      }
+
+    } catch (e: any) {
+      console.error("Bot action execution failed:", e);
+      setBotLogs(prev => [`[${new Date().toLocaleTimeString()}] エラー: ${e.message}`, ...prev]);
+    } finally {
+      setIsSimulating(false);
+    }
+  };
+
   const unreadCount = adminMessages.filter(m => !m.read).length;
+
+  // Blog Parts (Widget) Mode Router - Outputs single widget component styled beautifully for blogging sidebar
+  if (isWidgetMode) {
+    return <WidgetView uid={widgetUid} />;
+  }
+
+  if (view === 'kairan') {
+    return (
+      <KairanbanView
+        user={user}
+        profile={userProfile}
+        allScenes={allScenes}
+        onBack={() => handleViewChange('feed')}
+        onProfileClick={(uid) => {
+          setViewedProfileId(uid);
+          handleViewChange('profile');
+        }}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-[#FDFCFB] text-[#1A1A1A] font-sans selection:bg-orange-100 selection:text-orange-900">
@@ -1948,6 +2742,18 @@ export default function App() {
           </button>
 
           <button 
+            id="btn-desktop-kairan"
+            onClick={() => { setView('kairan'); setShowRanking(false); }}
+            className={cn(
+              "p-2 rounded-full border flex items-center justify-center transition-all hover:scale-105 active:scale-95 cursor-pointer",
+              view === 'kairan' ? "bg-red-800 border-red-800 text-white animate-pulse-subtle" : "text-[#b45309] border-orange-50 bg-white hover:bg-orange-50"
+            )}
+            title="地味っち回覧板"
+          >
+            <span className="text-sm font-bold flex items-center gap-1 px-1">📌 {t("回覧板", "Kairanban")}</span>
+          </button>
+
+          <button 
             id="btn-desktop-plaza"
             onClick={() => { setView('plaza'); setShowRanking(false); }}
             className={cn(
@@ -1957,6 +2763,18 @@ export default function App() {
             title="地味ひろば (Jimichi Plaza)"
           >
             <span className="text-sm font-bold flex items-center gap-1 px-1">🎪 {t("地味ひろば", "Plaza")}</span>
+          </button>
+
+          <button 
+            id="btn-desktop-jse"
+            onClick={() => { setView('jse'); setShowRanking(false); }}
+            className={cn(
+              "p-2 rounded-full border flex items-center justify-center transition-all hover:scale-105 active:scale-95 cursor-pointer",
+              view === 'jse' ? "bg-orange-600 border-orange-600 text-white animate-pulse-subtle" : "text-[#b45309] border-orange-50 bg-white hover:bg-orange-50"
+            )}
+            title="地味っち株式市場 (Jimichi Stock Exchange)"
+          >
+            <span className="text-sm font-bold flex items-center gap-1 px-1">📈 {t("地味株 (JSE)", "Stocks")}</span>
           </button>
 
           {user ? (
@@ -2108,12 +2926,22 @@ export default function App() {
             onBack={() => handleViewChange('feed')} 
             onGachaStateChange={() => setGachaRevision(prev => prev + 1)}
           />
+        ) : view === 'jse' ? (
+          <JseView 
+            user={user}
+            profile={userProfile}
+            onBack={() => handleViewChange('feed')}
+            onGachaStateChange={() => setGachaRevision(prev => prev + 1)}
+            allScenes={allScenes}
+          />
         ) : view === 'terms' ? (
           <TermsView onBack={() => handleViewChange('feed')} isAdmin={isAdmin} />
         ) : view === 'privacy' ? (
           <PrivacyView onBack={() => handleViewChange('feed')} isAdmin={isAdmin} />
         ) : view === 'guidelines' ? (
           <GuidelinesView onBack={() => handleViewChange('feed')} isAdmin={isAdmin} />
+        ) : view === 'about' ? (
+          <JimiLandingPage onBack={() => handleViewChange('feed')} onGoToApp={() => handleViewChange('feed')} user={user} />
         ) : view === 'feed' ? (
           <>
             <section className="mb-12 text-center">
@@ -2225,21 +3053,37 @@ export default function App() {
                   <p className="text-orange-400">{t("まだ投稿がありません。最初のシーンを投稿してみませんか？", "No scenes posted yet. Why not post the very first one?")}</p>
                 </div>
               ) : (
-                scenes.map((scene) => (
-                  <SceneCard 
-                    key={scene.id} 
-                    scene={scene} 
-                    onUpvote={() => { handleUpvote(scene.id); }}
-                    onClick={() => handleSelectScene(scene)}
-                    onProfileClick={handleOpenProfile}
-                    onTagClick={setSelectedTag}
-                    isUpvoted={upvotedScenes.has(scene.id)}
-                    isAdmin={isAdmin}
-                    onDelete={() => handleDeleteScene(scene.id)}
-                    authorProfile={profiles[scene.authorId]}
-                    onCopy={handleCopyPost}
-                  />
-                ))
+                <>
+                  {scenes.slice(0, displayLimit).map((scene) => (
+                    <SceneCard 
+                      key={scene.id} 
+                      scene={scene} 
+                      onUpvote={() => { handleUpvote(scene.id); }}
+                      onClick={() => handleSelectScene(scene)}
+                      onProfileClick={handleOpenProfile}
+                      onTagClick={setSelectedTag}
+                      isUpvoted={upvotedScenes.has(scene.id)}
+                      isAdmin={isAdmin}
+                      onDelete={() => handleDeleteScene(scene.id)}
+                      authorProfile={profiles[scene.authorId]}
+                      currentUserProfile={myProfile}
+                      onCopy={handleCopyPost}
+                      onToggleSticker={handleToggleSceneSticker}
+                    />
+                  ))}
+
+                  {scenes.length > displayLimit && (
+                    <div className="flex justify-center pt-4">
+                      <button
+                        onClick={() => setDisplayLimit(prev => prev + 25)}
+                        className="px-6 py-3.5 bg-orange-50 text-orange-700 hover:bg-orange-100 font-extrabold text-xs tracking-widest uppercase rounded-2xl border border-orange-100 active:scale-95 transition-all flex items-center gap-2 cursor-pointer shadow-sm hover:shadow-md"
+                      >
+                        <ChevronDown className="w-4 h-4" />
+                        さらに投稿を読み込む ({scenes.length - displayLimit}件の未表示)
+                      </button>
+                    </div>
+                  )}
+                </>
               )}
             </div>
 
@@ -2261,6 +3105,17 @@ export default function App() {
                   <h2 className="text-sm font-bold text-orange-950 mb-1">高校生あるある</h2>
                   <p className="text-[11px] text-orange-800/70">「放課後の何気ない時間」「チャイムと同時にダッシュする」など、いつまでも色褪せない学校生活の地味エピソード。</p>
                 </div>
+              </div>
+
+              <div className="mt-8 border-t border-orange-100/60 pt-6 text-center">
+                <button
+                  type="button"
+                  onClick={() => handleViewChange('about')}
+                  className="inline-flex items-center gap-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-6 py-3 rounded-2xl transition cursor-pointer shadow-md shadow-amber-600/10 active:scale-95"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-amber-200 animate-pulse" />
+                  <span>{t("地味っち公式ホームページ・詳しい使い方はこちら ↗", "Official Jimicchi Homepage & User Guide ↗")}</span>
+                </button>
               </div>
             </div>
           </>
@@ -2293,6 +3148,7 @@ export default function App() {
             onOpenGacha={() => setShowGachaModal(true)}
             gachaRevision={gachaRevision}
             onCopy={handleCopyPost}
+            onToggleSticker={handleToggleSceneSticker}
           />
         )}
       </main>
@@ -2322,6 +3178,7 @@ export default function App() {
         {showLoginModal && (
           <AuthModal 
             onClose={() => setShowLoginModal(false)} 
+            onViewChange={handleViewChange}
           />
         )}
       </AnimatePresence>
@@ -2435,7 +3292,7 @@ export default function App() {
                     {!user?.isAnonymous && (
                       <button 
                         onClick={() => { setShowGachaModal(true); setShowMobileMenu(false); }}
-                        className="w-full flex items-center justify-between p-3 rounded-2xl hover:bg-orange-50/60 text-left transition text-orange-900 group cursor-pointer"
+                        className="w-full flex items-center justify-between p-3 rounded-2xl hover:bg-orange-50/60 text-left transition text-orange-900 group cursor-pointer border-0 bg-transparent"
                       >
                         <div className="flex items-center gap-3">
                           <div className="p-2 bg-amber-50 rounded-xl text-amber-600 group-hover:bg-amber-100 transition">
@@ -2447,6 +3304,28 @@ export default function App() {
                           </div>
                         </div>
                         <ChevronRight className="w-4 h-4 text-orange-300 group-hover:translate-x-0.5 transition-transform" />
+                      </button>
+                    )}
+
+                    {/* おやつ応援/支援の設定 */}
+                    {!user?.isAnonymous && (
+                      <button 
+                        onClick={() => { 
+                          setShowSupportLinkModal(true); 
+                          setShowMobileMenu(false); 
+                        }}
+                        className="w-full flex items-center justify-between p-3 rounded-2xl bg-rose-50/40 hover:bg-rose-50 hover:border-rose-200 border border-rose-100/40 text-left transition text-rose-955 group cursor-pointer"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 bg-gradient-to-br from-rose-400 to-pink-500 rounded-xl text-white group-hover:scale-105 transition-all">
+                            <Sparkles className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <span className="text-xs font-black block text-rose-950">{t("おやつ応援（支援）設定", "Setup Snack Tips")}</span>
+                            <span className="text-[10px] text-rose-600 font-semibold">{t("投げ銭やほしい物リストURLを登録", "Configure tip or donation links")}</span>
+                          </div>
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-rose-400 group-hover:translate-x-0.5 transition-transform" />
                       </button>
                     )}
 
@@ -2467,6 +3346,23 @@ export default function App() {
                       <ChevronRight className="w-4 h-4 text-orange-300 group-hover:translate-x-0.5 transition-transform" />
                     </button>
 
+                    {/* 地味っち回覧板 (Kairanban) */}
+                    <button 
+                      onClick={() => { setView('kairan'); setShowRanking(false); setShowMobileMenu(false); }}
+                      className="w-full flex items-center justify-between p-3 rounded-2xl hover:bg-orange-50/60 text-left transition text-orange-900 group cursor-pointer"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-red-50 rounded-xl text-red-600 group-hover:bg-red-100 transition">
+                          <span className="text-base leading-none">📌</span>
+                        </div>
+                        <div>
+                          <span className="text-xs font-black block text-orange-950">{t("地味っち回覧板", "Jimichi Kairanban")}</span>
+                          <span className="text-[10px] text-orange-400 font-medium">{t("全画面スワイプで回覧板を回し読み", "Browse and circulate posts full-screen")}</span>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-orange-300 group-hover:translate-x-0.5 transition-transform" />
+                    </button>
+
                     {/* Event Plaza */}
                     <button 
                       onClick={() => { setView('plaza'); setShowRanking(false); setShowMobileMenu(false); }}
@@ -2479,6 +3375,23 @@ export default function App() {
                         <div>
                           <span className="text-xs font-black block text-orange-950">{t("地味ひろば", "Event Plaza")}</span>
                           <span className="text-[10px] text-orange-400 font-medium">{t("地味俳句・ダジャレ・地味書籍", "Haiku, Dajare, Books")}</span>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-orange-300 group-hover:translate-x-0.5 transition-transform" />
+                    </button>
+
+                    {/* Jimi Stock Exchange (JSE) */}
+                    <button 
+                      onClick={() => { setView('jse'); setShowRanking(false); setShowMobileMenu(false); }}
+                      className="w-full flex items-center justify-between p-3 rounded-2xl hover:bg-orange-50/60 text-left transition text-orange-900 group cursor-pointer"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-orange-50 rounded-xl text-orange-600 group-hover:bg-orange-100 transition">
+                          <span className="text-base leading-none">📈</span>
+                        </div>
+                        <div>
+                          <span className="text-xs font-black block text-orange-950">{t("地味っち株式市場 (JSE)", "Stock Exchange (JSE)")}</span>
+                          <span className="text-[10px] text-orange-400 font-medium">{t("現象そのものに投資する株式市場", "Invest in phenomena directly")}</span>
                         </div>
                       </div>
                       <ChevronRight className="w-4 h-4 text-orange-300 group-hover:translate-x-0.5 transition-transform" />
@@ -2685,6 +3598,7 @@ export default function App() {
               window.history.pushState({}, '', '/');
             }}
             authorProfile={profiles[selectedScene.authorId]}
+            currentUserProfile={myProfile}
             profiles={profiles}
           />
         )}
@@ -2715,6 +3629,10 @@ export default function App() {
             onBanUser={handleBanUser}
             onCreateAnnouncement={handleCreateAnnouncement}
             stats={stats}
+            botLogs={botLogs}
+            setBotLogs={setBotLogs}
+            isSimulating={isSimulating}
+            triggerBotSimulation={triggerBotSimulation}
           />
         )}
       </AnimatePresence>
@@ -2755,6 +3673,19 @@ export default function App() {
         )}
       </AnimatePresence>
 
+      {/* Onboarding / Tutorial Modal */}
+      <AnimatePresence>
+        {showTutorial && (
+          <TutorialModal
+            isOpen={showTutorial}
+            onClose={() => setShowTutorial(false)}
+            onStartInteractive={() => {
+              setTutorialStep(1);
+            }}
+          />
+        )}
+      </AnimatePresence>
+
       {/* Jimi Gacha Modal */}
       <AnimatePresence>
         {showGachaModal && user && (
@@ -2771,6 +3702,93 @@ export default function App() {
               }
             }}
           />
+        )}
+      </AnimatePresence>
+
+      {/* Dynamic Support/Tip Link Setup Modal */}
+      <AnimatePresence>
+        {showSupportLinkModal && user && (
+          <div className="fixed inset-0 z-[1100] flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowSupportLinkModal(false)}
+              className="fixed inset-0 bg-orange-950/45 backdrop-blur-sm"
+            />
+            
+            {/* Modal Body */}
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              transition={{ type: "spring", duration: 0.25 }}
+              className="relative w-full max-w-md bg-white rounded-3xl border border-orange-100 shadow-2xl p-6 z-[1101] overflow-hidden"
+              id="support-link-modal"
+            >
+              <div className="flex items-center justify-between mb-4 pb-3 border-b border-orange-50">
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">🎁</span>
+                  <h3 className="font-black text-orange-950 text-base">{t("おやつ応援（支援URL）設定", "Configure Snack Tip URL")}</h3>
+                </div>
+                <button
+                  onClick={() => setShowSupportLinkModal(false)}
+                  className="p-1 text-orange-700 hover:bg-orange-50 rounded-full transition cursor-pointer border-0 bg-transparent animate-fade-in"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <p className="text-xs text-orange-800 leading-relaxed font-semibold">
+                  {t("地味っちでは、「ささやかな共感」を生み出してくれた投稿主（クリエイター）へ応援の気持ちを込めておやつ代やコーヒー代を差し入れ（投げ銭）することができます！☕️", "On Jimicchi, you can configure your custom support URL so users can send you snack or coffee tips for your posts!")}
+                </p>
+
+                <div className="bg-orange-50/50 border border-orange-100/40 rounded-2xl p-3.5 space-y-2 text-[11px] text-orange-900 leading-relaxed font-medium mb-3">
+                  <div className="font-bold text-orange-950 flex items-center gap-1">
+                    <span>💡</span>
+                    <span>{t("登録できるURLの例:", "Examples of Tip Links:")}</span>
+                  </div>
+                  <ul className="list-disc pl-4 space-y-1">
+                    <li>Kyashの送金リンク (kyash.me/...)</li>
+                    <li>Amazon ほしい物リスト</li>
+                    <li>Buy Me a Coffee / Ko-fi</li>
+                    <li>ストライプ/PayPal送金・OFUSE等</li>
+                  </ul>
+                  <p className="text-[10px] text-rose-500 font-bold mt-1">※個人情報の公開範囲には十分ご注意ください。</p>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold text-orange-500 mb-1.5 uppercase tracking-wider">{t("支援URL / 送金用リンク", "Tipping Link URL")}</label>
+                  <input
+                    type="url"
+                    placeholder="https://kyash.me/share/..."
+                    value={supportLinkInput}
+                    onChange={(e) => setSupportLinkInput(e.target.value)}
+                    className="w-full text-xs px-3.5 py-2.5 bg-orange-50/20 border border-orange-200/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-300 font-mono transition"
+                  />
+                </div>
+
+                <div className="flex gap-2 pt-2">
+                  <button
+                    onClick={() => handleGlobalUpdateSupportLink('')}
+                    disabled={supportLinkLoading}
+                    className="flex-shrink-0 px-3 py-2.5 rounded-xl border border-orange-100 text-orange-400 text-xs font-bold bg-white hover:bg-red-50 hover:text-red-500 transition disabled:opacity-40 cursor-pointer"
+                  >
+                    {t("クリア", "Clear")}
+                  </button>
+                  <button
+                    onClick={() => handleGlobalUpdateSupportLink(supportLinkInput)}
+                    disabled={supportLinkLoading}
+                    className="flex-1 py-2.5 bg-gradient-to-r from-orange-400 to-rose-400 hover:from-orange-500 hover:to-rose-500 text-white font-black text-xs rounded-xl shadow-md cursor-pointer hover:shadow-orange-100/50 transition-all border-0 disabled:opacity-50"
+                  >
+                    {supportLinkLoading ? t("保存中...", "Saving...") : t("設定を保存する", "Save TIP settings")}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
 
@@ -3036,6 +4054,13 @@ export default function App() {
             >
               コミュニティガイドライン
             </button>
+            <span className="text-orange-200 dark:text-zinc-800">|</span>
+            <button 
+              onClick={() => handleViewChange('about')} 
+              className="hover:text-orange-600 dark:hover:text-[#f97316] hover:underline cursor-pointer transition font-bold bg-transparent border-none py-1 px-1.5 focus:outline-none text-orange-700 dark:text-orange-400"
+            >
+              {t("地味っちとは？ (紹介)", "What is Jimicchi? (Info)")}
+            </button>
           </div>
         </div>
       </footer>
@@ -3052,10 +4077,13 @@ const SceneCard: React.FC<{
   isAdmin?: boolean,
   onDelete?: () => void,
   authorProfile?: Profile,
+  currentUserProfile?: Profile | null,
   onCopy?: (scene: Scene) => void,
-  onViewed?: () => void
-}> = ({ scene, onUpvote, onClick, onProfileClick, isUpvoted, isAdmin, onDelete, authorProfile, onCopy, onViewed }) => {
+  onViewed?: () => void,
+  onToggleSticker?: (sceneId: string, stickerId: string) => void
+}> = ({ scene, onUpvote, onClick, onProfileClick, isUpvoted, isAdmin, onDelete, authorProfile, currentUserProfile, onCopy, onViewed, onToggleSticker }) => {
   const { language, t } = useLanguage();
+  const [showStickerSelector, setShowStickerSelector] = useState(false);
   const authorName = scene.isAnonymousPost ? t('匿名ユーザー', 'Anonymous User') : (authorProfile?.displayName || scene.authorName);
   const authorPhoto = scene.isAnonymousPost ? 'https://api.dicebear.com/7.x/bottts/svg?seed=anonymous' : (authorProfile?.photoURL || scene.authorPhoto);
   const authorTitle = scene.isAnonymousPost ? '' : (authorProfile?.selectedTitle || '');
@@ -3066,6 +4094,21 @@ const SceneCard: React.FC<{
 
   const views = scene.views || 0;
   const upvotes = scene.upvotes || 0;
+  
+  const myOffset = currentUserProfile?.excavatedScenery?.[scene.id] || 0;
+
+  const fossilInfo = useMemo(() => {
+    return calculateFossilInfo(
+      scene.createdAt,
+      scene.upvotes || 0,
+      scene.commentCount || 0,
+      scene.sashiireCount || 0,
+      scene.kairanAmount || 0,
+      scene.excavationsCount || 0,
+      myOffset
+    );
+  }, [scene, myOffset]);
+
   const hasConfidence = scene.confidence !== undefined && scene.confidence !== null;
   const isOwnPost = auth.currentUser?.uid === scene.authorId;
   const showConfidenceSection = hasConfidence && (isOwnPost || isAdmin);
@@ -3135,9 +4178,18 @@ const SceneCard: React.FC<{
             )}</span>
           </span>
         )}
-        <span className="text-[10px] text-orange-200 ml-auto">
-          {scene.createdAt ? formatDistanceToNow(scene.createdAt.toDate(), { addSuffix: true, locale: language === 'ja' ? ja : undefined }) : t('たった今', 'Just now')}
-        </span>
+        <div className="ml-auto flex items-center gap-1.5 shrink-0">
+          {fossilInfo && fossilInfo.tier !== 'fresh' && (
+            <span className="text-[9px] font-heavy text-stone-500 bg-stone-100 border border-stone-200/60 px-2 py-0.5 rounded-full select-none flex items-center gap-0.5" title={`この投稿は ${fossilInfo.label} (${fossilInfo.percentage}%) です`}>
+              <span>{fossilInfo.emoji}</span>
+              <span className="hidden sm:inline">{fossilInfo.label}</span>
+              <span>{fossilInfo.percentage}%</span>
+            </span>
+          )}
+          <span className="text-[10px] text-orange-200">
+            {scene.createdAt ? formatDistanceToNow(scene.createdAt.toDate(), { addSuffix: true, locale: language === 'ja' ? ja : undefined }) : t('たった今', 'Just now')}
+          </span>
+        </div>
       </div>
       
       {/* 2つ名 (Title) & Badges Row */}
@@ -3151,23 +4203,14 @@ const SceneCard: React.FC<{
             />
           )}
           {equippedBadgesList.length > 0 && (
-            <span className="flex items-center gap-0.5 select-none">
-              {equippedBadgesList.map((badge) => {
-                const rStyle = getBadgeRarityStyle(badge.rarity);
-                return (
-                  <span 
-                    key={badge.id}
-                    className={cn(
-                      "w-[18px] h-[18px] flex items-center justify-center text-[10px] rounded-full border shadow-sm shrink-0",
-                      rStyle.bg,
-                      rStyle.border
-                    )}
-                    title={`${badge.name}: ${badge.description}`}
-                  >
-                    {badge.emoji}
-                  </span>
-                );
-              })}
+            <span className="flex items-center gap-0.5 select-none animate-in fade-in duration-200">
+              {equippedBadgesList.map((badge) => (
+                <BadgeDisplay 
+                  key={badge.id} 
+                  badge={badge} 
+                  size="sm" 
+                />
+              ))}
             </span>
           )}
         </div>
@@ -3175,7 +4218,7 @@ const SceneCard: React.FC<{
       
       <h3 className="text-xl font-bold text-orange-950 mb-3 group-hover:text-orange-500 transition-colors line-clamp-2 leading-snug">
         <a href={`/post/${scene.id}`} onClick={(e) => { e.preventDefault(); e.stopPropagation(); onClick(); }} className="hover:underline">
-          {scene.title}
+          <FossilizedContent text={scene.title} percentage={fossilInfo.percentage} sceneId={scene.id} isTitle={true} />
         </a>
       </h3>
       
@@ -3196,8 +4239,41 @@ const SceneCard: React.FC<{
       )}
       
       <p className="text-orange-800/80 text-sm leading-relaxed line-clamp-3 mb-6 font-medium">
-        {scene.content}
+        <FossilizedContent text={scene.content} percentage={fossilInfo.percentage} sceneId={scene.id} isTitle={false} />
       </p>
+
+      {/* Sent Stickers display */}
+      {scene.stickers && Object.keys(scene.stickers).length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-4 bg-orange-50/35 p-2 rounded-2xl border border-orange-100/50">
+          {Object.entries(scene.stickers).map(([stickerId, uids]) => {
+            const sticker = STICKERS.find(s => s.id === stickerId);
+            if (!sticker) return null;
+            const stickerName = language === 'en' ? sticker.nameEn : sticker.name;
+            const uidsList = Array.isArray(uids) ? uids : [];
+            const hasUserReacted = auth.currentUser ? uidsList.includes(auth.currentUser.uid) : false;
+            return (
+              <button
+                key={stickerId}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleSticker?.(scene.id, stickerId);
+                }}
+                className={cn(
+                  "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border transition-all active:scale-95 cursor-pointer",
+                  hasUserReacted
+                    ? "bg-orange-500/10 border-orange-500 text-orange-950 hover:bg-orange-500/20"
+                    : "bg-white border-orange-100 text-orange-600 hover:bg-orange-50"
+                )}
+                title={stickerName}
+              >
+                <img src={sticker.url} alt={stickerName} className="w-4 h-4 object-contain inline shrink-0" referrerPolicy="no-referrer" />
+                <span className="text-[10px] sm:text-xs">{stickerName}</span>
+                <span className="text-[9px] sm:text-xs text-orange-400 font-extrabold">×{uidsList.length}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Confidence Goal & Relatability Ratio Gauge Container */}
       {showConfidenceSection && (
@@ -3261,19 +4337,50 @@ const SceneCard: React.FC<{
       )}
 
       <div className="flex items-center justify-between border-t border-orange-50 pt-4">
-        <div className="flex items-center gap-4 text-orange-400">
+        <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-orange-400">
           <div className="flex items-center gap-1.5 hover:text-orange-600 transition-colors">
             <MessageSquare className="w-4 h-4" />
-            <span className="text-xs font-bold">コメント</span>
+            <span className="text-xs font-bold">
+              {t('コメント', 'Comments')}
+              {scene.commentCount !== undefined && scene.commentCount > 0 ? ` (${scene.commentCount})` : ` (0)`}
+            </span>
           </div>
+          
+          {/* Sticker Button */}
+          <div className="relative">
+            <button 
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowStickerSelector(!showStickerSelector);
+              }}
+              className="flex items-center gap-1 text-xs text-orange-400 hover:text-orange-600 transition-all active:scale-90 duration-100 cursor-pointer focus:outline-none"
+            >
+              <Smile className="w-4 h-4" />
+              <span className="font-bold">{t('ステッカー', 'Sticker')}</span>
+            </button>
+            
+            {showStickerSelector && (
+              <div className="absolute bottom-8 left-0 z-50 animate-in fade-in zoom-in-95 duration-100" onClick={(e) => e.stopPropagation()}>
+                <StickerSelector 
+                  onSelect={(stickerId) => {
+                    onToggleSticker?.(scene.id, stickerId);
+                    setShowStickerSelector(false);
+                  }}
+                  onClose={() => setShowStickerSelector(false)}
+                />
+              </div>
+            )}
+          </div>
+
           <button 
             onClick={(e) => { e.stopPropagation(); onCopy?.(scene); }}
-            className="flex items-center gap-1 text-xs text-orange-400 hover:text-orange-600 transition-all active:scale-90 duration-100 cursor-pointer"
-            title="コピー"
+            className="flex items-center gap-1 text-xs text-orange-400 hover:text-orange-600 transition-all active:scale-90 duration-100 cursor-pointer focus:outline-none"
+            title={t("コピー", "Copy")}
           >
             <span className="select-none">📋</span>
-            <span className="font-bold">コピー</span>
+            <span className="font-bold">{t('コピー', 'Copy')}</span>
           </button>
+          
           {isAdmin && (
             <button 
               onClick={(e) => { e.stopPropagation(); onDelete?.(); }}
@@ -3411,6 +4518,35 @@ function SubmitModal({ onClose, user, setAiLoading, aiLoading, onPostSuccess }: 
         });
       } catch (fError) {
         console.error("Failed to notify followers:", fError);
+      }
+
+      // Analyze post content for JSE stock matching asynchronously
+      try {
+        fetch('/api/analyze-post-stock', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title, content })
+        })
+        .then(res => res.json())
+        .then(async (data) => {
+          if (data && data.matchedStockId) {
+            const authorDisplayName = isAnonymousPost ? '匿名ユーザー' : (profileData?.displayName || user.displayName || '名無しさん');
+            await addDoc(collection(db, 'jse_reports'), {
+              stockId: data.matchedStockId,
+              explanation: data.explanation || `「${title}」の投稿が検知されました。`,
+              postId: 'new_scene_post',
+              postTitle: title,
+              authorName: authorDisplayName,
+              createdAt: serverTimestamp()
+            });
+            console.log("JSE Stock Match reported:", data.matchedStockId);
+          }
+        })
+        .catch(err => {
+          console.error("Error matching post stock alignment:", err);
+        });
+      } catch (analyzeErr) {
+        console.error("Failed to trigger JSE analyst:", analyzeErr);
       }
 
       onClose();
@@ -3672,8 +4808,11 @@ function DetailModal({
   onReport,
   onTagClick,
   authorProfile,
+  currentUserProfile,
   profiles,
-  onCopy
+  onCopy,
+  onToggleSticker,
+  onToggleCommentSticker
 }: { 
   scene: Scene, 
   onClose: () => void, 
@@ -3686,18 +4825,49 @@ function DetailModal({
   onReport?: (reason: string) => void,
   onTagClick?: (tag: string) => void,
   authorProfile?: Profile,
+  currentUserProfile?: Profile | null,
   profiles?: Record<string, Profile>,
-  onCopy?: (scene: Scene) => void
+  onCopy?: (scene: Scene) => void,
+  onToggleSticker?: (sceneId: string, stickerId: string) => void,
+  onToggleCommentSticker?: (sceneId: string, commentId: string, stickerId: string) => void
 }) {
   const { language, t } = useLanguage();
+  const [liveScene, setLiveScene] = useState<Scene>(scene);
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState('');
   const [commentLoading, setCommentLoading] = useState(false);
   const [showReportInput, setShowReportInput] = useState(false);
   const [reportReason, setReportReason] = useState('');
+  const [activeCommentReactId, setActiveCommentReactId] = useState<string | null>(null);
+  const [showCommentFormSticker, setShowCommentFormSticker] = useState(false);
+  const [showPostStickerSelector, setShowPostStickerSelector] = useState(false);
 
   const [capturing, setCapturing] = useState(false);
   const screenshotRef = useRef<HTMLDivElement>(null);
+
+  const myOffset = currentUserProfile?.excavatedScenery?.[liveScene.id] || 0;
+
+  const fossilInfo = useMemo(() => {
+    return calculateFossilInfo(
+      liveScene.createdAt,
+      liveScene.upvotes || 0,
+      liveScene.commentCount || 0,
+      liveScene.sashiireCount || 0,
+      liveScene.kairanAmount || 0,
+      liveScene.excavationsCount || 0,
+      myOffset
+    );
+  }, [liveScene, myOffset]);
+
+  useEffect(() => {
+    const docRef = doc(db, 'scenes', scene.id);
+    const unsubscribe = onSnapshot(docRef, (snap) => {
+      if (snap.exists()) {
+        setLiveScene({ id: snap.id, ...snap.data() } as Scene);
+      }
+    });
+    return () => unsubscribe();
+  }, [scene.id]);
 
   const handleScreenshot = async () => {
     return;
@@ -3882,6 +5052,26 @@ function DetailModal({
         content: newComment,
         createdAt: serverTimestamp()
       });
+
+      // Update scene comments counter
+      const sceneRef = doc(db, 'scenes', scene.id);
+      await updateDoc(sceneRef, {
+        commentCount: increment(1)
+      });
+
+      // Send Notification to post author (only if commenting on someone else's post)
+      if (scene.authorId && scene.authorId !== user.uid) {
+        await addDoc(collection(db, 'admin_messages'), {
+          recipientId: scene.authorId,
+          senderId: user.uid,
+          content: `💬 ${profileData?.displayName || user.displayName || '誰か'}さんから新しいコメント: 「${newComment.slice(0, 30)}${newComment.length > 30 ? '...' : ''}」`,
+          createdAt: serverTimestamp(),
+          read: false,
+          sceneId: scene.id,
+          type: 'comment'
+        });
+      }
+
       setNewComment('');
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, `scenes/${scene.id}/comments`);
@@ -3933,23 +5123,14 @@ function DetailModal({
                       />
                     )}
                     {!scene.isAnonymousPost && equippedBadgesList.length > 0 && (
-                      <span className="flex items-center gap-0.5 select-none">
-                        {equippedBadgesList.map((badge) => {
-                          const rStyle = getBadgeRarityStyle(badge.rarity);
-                          return (
-                            <span 
-                              key={badge.id}
-                              className={cn(
-                                "w-[18px] h-[18px] flex items-center justify-center text-[10px] rounded-full border shadow-sm shrink-0",
-                                rStyle.bg,
-                                rStyle.border
-                              )}
-                              title={`${badge.name}: ${badge.description}`}
-                            >
-                              {badge.emoji}
-                            </span>
-                          );
-                        })}
+                      <span className="flex items-center gap-0.5 select-none animate-in fade-in duration-200">
+                        {equippedBadgesList.map((badge) => (
+                          <BadgeDisplay 
+                            key={badge.id} 
+                            badge={badge} 
+                            size="sm" 
+                          />
+                        ))}
                       </span>
                     )}
                   </div>
@@ -4016,7 +5197,9 @@ function DetailModal({
               </div>
             )}
 
-            <h2 className="text-2xl sm:text-3xl font-bold text-orange-900 mb-4 leading-tight">{scene.title}</h2>
+            <h2 className="text-2xl sm:text-3xl font-bold text-orange-900 mb-4 leading-tight">
+              <FossilizedContent text={scene.title} percentage={fossilInfo.percentage} sceneId={scene.id} isTitle={true} />
+            </h2>
             
             {scene.imageUrl && (
               <div className="mb-6 rounded-[32px] overflow-hidden bg-orange-50 border border-orange-100">
@@ -4038,15 +5221,75 @@ function DetailModal({
               </div>
             )}
             
-            <p className="text-orange-800 leading-relaxed text-lg italic whitespace-pre-wrap">"{scene.content}"</p>
+            <div className="text-orange-850 leading-relaxed text-lg italic whitespace-pre-wrap py-2 border-l-4 border-orange-200/50 pl-4 bg-orange-50/15 rounded-r-2xl">
+              <FossilizedContent text={liveScene.content} percentage={fossilInfo.percentage} sceneId={scene.id} isTitle={false} />
+            </div>
 
-            <div className="mt-6 flex justify-end">
+            {/* Interactive incremental stone-chipping station */}
+            <FossilChipStation scene={liveScene} currentUserProfile={currentUserProfile} onChipped={() => {}} />
+
+            {/* Sent Stickers display inside DetailModal for the post itself */}
+            {liveScene.stickers && Object.keys(liveScene.stickers).length > 0 && (
+              <div className="flex flex-wrap gap-2 mt-4 bg-orange-50/30 p-2.5 rounded-2xl border border-orange-100/50">
+                {Object.entries(liveScene.stickers).map(([stickerId, uids]) => {
+                  const sticker = STICKERS.find(s => s.id === stickerId);
+                  if (!sticker) return null;
+                  const stickerName = language === 'en' ? sticker.nameEn : sticker.name;
+                  const uidsList = Array.isArray(uids) ? uids : [];
+                  const hasUserReacted = user ? uidsList.includes(user.uid) : false;
+                  return (
+                    <button
+                      key={stickerId}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onToggleSticker?.(liveScene.id, stickerId);
+                      }}
+                      className={cn(
+                        "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border transition-all active:scale-95 cursor-pointer",
+                        hasUserReacted
+                          ? "bg-orange-500/10 border-orange-500 text-orange-950 hover:bg-orange-500/20"
+                          : "bg-white border-orange-100 text-orange-600 hover:bg-orange-50"
+                      )}
+                      title={stickerName}
+                    >
+                      <img src={sticker.url} alt={stickerName} className="w-4 h-4 object-contain inline shrink-0" referrerPolicy="no-referrer" />
+                      <span className="text-[10px] sm:text-xs">{stickerName}</span>
+                      <span className="text-[9px] sm:text-xs text-orange-400 font-extrabold">×{uidsList.length}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            <div className="mt-6 flex justify-end gap-2.5">
+              {/* Sticker addition button for the post */}
+              <div className="relative">
+                <button 
+                  onClick={() => setShowPostStickerSelector(!showPostStickerSelector)}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-orange-50 hover:bg-orange-100 text-orange-600 rounded-2xl text-xs font-bold transition-all active:scale-90 duration-100 cursor-pointer shadow-sm border border-orange-100 focus:outline-none animate-in fade-in"
+                >
+                  <Smile className="w-4 h-4" />
+                  <span>{t('ステッカー', 'Sticker')}</span>
+                </button>
+                {showPostStickerSelector && (
+                  <div className="absolute right-0 bottom-10 z-50 animate-in fade-in zoom-in-95 duration-100" onClick={(e) => e.stopPropagation()}>
+                    <StickerSelector 
+                      onSelect={(stickerId) => {
+                        onToggleSticker?.(liveScene.id, stickerId);
+                        setShowPostStickerSelector(false);
+                      }}
+                      onClose={() => setShowPostStickerSelector(false)}
+                    />
+                  </div>
+                )}
+              </div>
+
               <button 
-                onClick={() => onCopy?.(scene)}
+                onClick={() => onCopy?.(liveScene)}
                 className="inline-flex items-center gap-1.5 px-4 py-2 bg-orange-50 hover:bg-orange-100 text-orange-600 rounded-2xl text-xs font-bold transition-all active:scale-90 duration-100 cursor-pointer shadow-sm border border-orange-100"
               >
                 <span>📋</span>
-                <span>コピー</span>
+                <span>{t('コピー', 'Copy')}</span>
               </button>
             </div>
 
@@ -4081,38 +5324,16 @@ function DetailModal({
                   ) : (
                     <div className="space-y-3">
                       <div className="flex items-center justify-between text-xs font-bold">
-                        <span className="text-orange-400">実際の共感度 (いいね数 / 閲覧数)</span>
+                        <span className="text-orange-400">{t("実際の共感度 (いいね数 / 閲覧数)", "Actual Empathy Ratio (Likes / Views)")}</span>
                         <span className="font-black text-lg text-orange-600 font-mono">
                           {Math.round((scene.upvotes / (scene.views || 1)) * 100)}%
                         </span>
-                      </div>
-                      
-                      {/* Progress Gauges */}
-                      <div className="relative w-full h-3 bg-orange-100 rounded-full overflow-hidden border border-orange-100 shadow-inner">
-                        <div 
-                          className="absolute left-0 top-0 h-full bg-orange-200/50"
-                          style={{ width: `${scene.confidence}%` }}
-                        />
-                        <div 
-                          className={cn(
-                            "absolute left-0 top-0 h-full rounded-full transition-all duration-700",
-                            Math.abs(scene.confidence - Math.round((scene.upvotes / (scene.views || 1)) * 100)) <= 10 
-                              ? "bg-gradient-to-r from-emerald-400 to-teal-500 shadow animate-pulse" 
-                              : "bg-orange-400"
-                          )}
-                          style={{ width: `${Math.round((scene.upvotes / (scene.views || 1)) * 100)}%` }}
-                        />
-                      </div>
-
-                      <div className="flex justify-between items-center text-[10px] text-orange-300 font-semibold px-1">
-                        <span>予測: {scene.confidence}%</span>
-                        <span>実際: {Math.round((scene.upvotes / (scene.views || 1)) * 100)}%</span>
                       </div>
 
                       {/* Status Badge */}
                       <div className="flex items-center justify-between pt-2">
                         {Math.abs(scene.confidence - Math.round((scene.upvotes / (scene.views || 1)) * 100)) <= 10 ? (
-                          <div className="w-full flex flex-col gap-1 bg-gradient-to-r from-emerald-50 to-teal-50/50 p-4 rounded-2xl border border-emerald-200 shadow-sm">
+                          <div className="w-full flex flex-col gap-1 bg-gradient-to-r from-emerald-50 to-teal-50/50 p-4 rounded-2xl border border-emerald-200 shadow-sm text-left">
                             <span className="inline-flex items-center gap-1.5 text-xs font-extrabold text-emerald-600">
                               🎯 シンクロ成功！ (誤差 {Math.abs(scene.confidence - Math.round((scene.upvotes / (scene.views || 1)) * 100))}%以内)
                             </span>
@@ -4121,7 +5342,7 @@ function DetailModal({
                             </p>
                           </div>
                         ) : (
-                          <div className="w-full flex flex-col gap-1 bg-orange-50 p-4 rounded-2xl border border-orange-100 text-orange-600">
+                          <div className="w-full flex flex-col gap-1 bg-orange-50 p-4 rounded-2xl border border-orange-100 text-orange-600 text-left">
                             <span className="inline-flex items-center gap-1.5 text-xs font-extrabold">
                               📊 予測誤差 {Math.abs(scene.confidence - Math.round((scene.upvotes / (scene.views || 1)) * 100))}%
                             </span>
@@ -4236,7 +5457,8 @@ function ProfileView({
   profiles,
   onOpenGacha,
   gachaRevision,
-  onCopy
+  onCopy,
+  onToggleSticker
 }: { 
   uid: string, 
   onBack: () => void, 
@@ -4261,8 +5483,10 @@ function ProfileView({
   profiles?: Record<string, Profile>,
   onOpenGacha?: () => void,
   gachaRevision?: number,
-  onCopy?: (scene: Scene) => void
+  onCopy?: (scene: Scene) => void,
+  onToggleSticker?: (sceneId: string, stickerId: string) => void
 }) {
+  const { language, t } = useLanguage();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [scenes, setScenes] = useState<Scene[]>([]);
   const [loading, setLoading] = useState(true);
@@ -4277,6 +5501,97 @@ function ProfileView({
   const [activeFollowsModal, setActiveFollowsModal] = useState<'followers' | 'following' | null>(null);
   const [followsUserIds, setFollowsUserIds] = useState<string[]>([]);
   const [followsListLoading, setFollowsListLoading] = useState(false);
+
+  // 招待コード・応援おやつ決済先管理の実装
+  const [refCodeInput, setRefCodeInput] = useState('');
+  const [refLoading, setRefLoading] = useState(false);
+  const [supportLinkInput, setSupportLinkInput] = useState(profile?.supportLink || '');
+  const [supportLinkEditing, setSupportLinkEditing] = useState(false);
+  const [supportLinkLoading, setSupportLinkLoading] = useState(false);
+
+  // Sync support link state when profile loads initially
+  useEffect(() => {
+    if (profile) {
+      setSupportLinkInput(profile.supportLink || '');
+    }
+  }, [profile]);
+
+  const handleApplyReferralCode = async () => {
+    if (!refCodeInput.trim()) return;
+    if (refCodeInput.trim() === uid) {
+      alert(t('自分自身のユーザーIDは招待コードに登録できません。', 'You cannot enter your own User ID as a referral code.'));
+      return;
+    }
+    setRefLoading(true);
+    try {
+      // 対象のお友達IDが存在するか照合
+      const targetUserRef = doc(db, 'profiles', refCodeInput.trim());
+      const targetSnap = await getDoc(targetUserRef);
+      if (!targetSnap.exists()) {
+        alert(t('指定されたお友達のユーザーIDは見つかりませんでした。入力内容を確認してください。', 'The specified User ID was not found. Please double-check.'));
+        setRefLoading(false);
+        return;
+      }
+
+      // 1. 自分側の更新
+      const myProfileRef = doc(db, 'profiles', uid);
+      await updateDoc(myProfileRef, {
+        referralCodeUsed: refCodeInput.trim(),
+        jCoins: increment(3000)
+      });
+
+      // 2. 相手側に届く通知メッセージ（セルフドロー式）
+      await addDoc(collection(db, 'admin_messages'), {
+        recipientId: refCodeInput.trim(),
+        senderId: uid,
+        senderName: profile?.displayName || t('お友達', 'Your friend'),
+        content: `REFERRAL_BONUS_3000`,
+        type: 'referral_claim',
+        createdAt: serverTimestamp(),
+        read: false
+      });
+
+      // 3. ローカルステート更新
+      if (profile) {
+        setProfile({
+          ...profile,
+          referralCodeUsed: refCodeInput.trim(),
+          jCoins: (profile.jCoins || 0) + 3000
+        });
+      }
+
+      alert(t('🎉 招待特典が適用されました！あなたに【3,000 J-Coin】がプレセントされました！お友達が次回ログインした際に、お友達にも3,000コインが届きます。', '🎉 referral_claim bonus applied! You received 【3,000 J-Coins】! Your friend will receive their 3,000 coins on their next login.'));
+    } catch (err: any) {
+      console.error("Referral process failed:", err);
+      alert(t('登録中にエラーが発生しました: ', 'Error occured: ') + err.message);
+    } finally {
+      setRefLoading(false);
+    }
+  };
+
+  const handleUpdateSupportLink = async () => {
+    setSupportLinkLoading(true);
+    try {
+      const myProfileRef = doc(db, 'profiles', uid);
+      await updateDoc(myProfileRef, {
+        supportLink: supportLinkInput.trim() || null
+      });
+
+      if (profile) {
+        setProfile({
+          ...profile,
+          supportLink: supportLinkInput.trim() || undefined
+        });
+      }
+      setSupportLinkEditing(false);
+      alert(t('おやつの差し入れ先を更新しました！☕️', 'Snack gifting link successfully modified!☕️'));
+    } catch (err: any) {
+      console.error("Failed to update supportLink:", err);
+      alert(t('更新に失敗しました: ', 'Failed to update: ') + err.message);
+    } finally {
+      setSupportLinkLoading(false);
+    }
+  };
 
   const openFollowsModal = async (type: 'followers' | 'following') => {
     setActiveFollowsModal(type);
@@ -4437,10 +5752,10 @@ function ProfileView({
       <div className="flex items-center justify-between">
         <button onClick={onBack} className="flex items-center gap-2 text-orange-400 hover:text-orange-600 transition-colors">
           <ArrowLeft className="w-4 h-4" />
-          <span className="text-xs font-bold uppercase tracking-widest">フィードに戻る</span>
+          <span className="text-xs font-bold uppercase tracking-widest">{t('フィードに戻る', 'Back to Feed')}</span>
         </button>
         {profile?.isBanned && (
-          <span className="bg-red-500 text-white px-3 py-1 rounded-full text-[10px] font-bold animate-pulse">BAN中</span>
+          <span className="bg-red-500 text-white px-3 py-1 rounded-full text-[10px] font-bold animate-pulse">{t('BAN中', 'Banned')}</span>
         )}
       </div>
 
@@ -4467,7 +5782,7 @@ function ProfileView({
                   <div className="flex gap-2.5 flex-wrap justify-center sm:justify-start">
                     <button onClick={onEdit} className="bg-orange-50 text-orange-600 px-4 py-2 rounded-xl text-xs font-bold hover:bg-orange-100 transition-all flex items-center gap-2">
                       <Edit2 className="w-3 h-3" />
-                      プロフ編集
+                      {t('プロフ編集', 'Edit Profile')}
                     </button>
                     {!auth.currentUser?.isAnonymous && (
                       <>
@@ -4476,14 +5791,14 @@ function ProfileView({
                           className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-md shadow-orange-500/10"
                         >
                           <Trophy className="w-3.5 h-3.5" />
-                          バッジ変更
+                          {t('バッジ変更', 'Change Badge')}
                         </button>
                         <button 
                           onClick={() => setShowTitleModal(true)} 
                           className="bg-orange-100 text-orange-600 border border-orange-200/50 hover:bg-orange-200 px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
                         >
                           <Bookmark className="w-3.5 h-3.5 text-orange-500" />
-                          2つ名変更
+                          {t('2つ名変更', 'Change Title')}
                         </button>
                         {onOpenGacha && (
                           <button 
@@ -4491,15 +5806,15 @@ function ProfileView({
                             className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-md shadow-amber-500/20 px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5"
                           >
                             <Coins className="w-3.5 h-3.5 text-amber-100" />
-                            地味ガチャ 🎰
+                            {t('地味ガチャ', 'Jimi Gacha')} 🎰
                           </button>
                         )}
                       </>
                     )}
                     {auth.currentUser?.isAnonymous && (
                       <div className="bg-orange-50/70 border border-orange-100/80 p-3.5 rounded-2xl text-[11px] font-bold text-orange-800 leading-relaxed max-w-sm mt-1 sm:mt-0 text-left">
-                        <span className="block mb-0.5 text-orange-600 font-extrabold flex items-center gap-1">💡 地味っちアカウント（匿名）でログイン中</span>
-                        ガチャを引いたり、2つ名・バッジを装備・DM機能を利用するには、一度ログアウトしGoogleアカウントで再ログインまたは本登録を行ってください。
+                        <span className="block mb-0.5 text-orange-600 font-extrabold flex items-center gap-1">💡 {t('💡 地味っちアカウント（匿名）でログイン中', '💡 Logged in with Jimicchi Anonymous Account')}</span>
+                        {t('ガチャを引いたり、2つ名・バッジを装備・DM機能を利用するには、一度ログアウトしGoogleアカウントで再ログインまたは本登録を行ってください。', 'To roll the gacha, equip titles/badges, or send messages, please log out and sign in with a Google account or register.')}
                       </div>
                     )}
                   </div>
@@ -4514,7 +5829,7 @@ function ProfileView({
                       )}
                     >
                       {followLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : isFollowing ? <UserMinus className="w-3 h-3" /> : <UserPlus className="w-3 h-3" />}
-                      {isFollowing ? 'フォロー解除' : 'フォロー'}
+                      {isFollowing ? t('フォロー解除', 'Unfollow') : t('フォロー', 'Follow')}
                     </button>
                     {!(auth.currentUser?.isAnonymous || profile?.isAnonymous) && (
                       <button 
@@ -4523,8 +5838,19 @@ function ProfileView({
                         className="bg-white border border-orange-100 text-orange-600 px-4 py-2 rounded-xl text-xs font-bold hover:bg-orange-50 transition-all flex items-center gap-2 shadow-sm disabled:opacity-50"
                       >
                         {chatLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
-                        メッセージ
+                        {t('メッセージ', 'Message')}
                       </button>
+                    )}
+                    {profile?.supportLink && (
+                      <a 
+                        href={profile.supportLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="bg-rose-500 hover:bg-rose-600 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-md shadow-rose-500/10 active:scale-95"
+                        title={t('このユーザーにおやつ（電子マネーやギフト）を差し入れする', 'Gift this user some snacks (E-Money/Gift)')}
+                      >
+                        <span>🎁 {t('差し入れ', 'Gift')}</span>
+                      </a>
                     )}
                   </div>
                 )}
@@ -4538,7 +5864,7 @@ function ProfileView({
                       )}
                     >
                       <Ban className="w-3 h-3" />
-                      {profile?.isBanned ? '非BAN' : 'BAN'}
+                      {profile?.isBanned ? t('非BAN', 'Unban') : t('BAN', 'Ban')}
                     </button>
                     {auth.currentUser?.email === 'kuailitengben@gmail.com' && (
                       <button 
@@ -4546,8 +5872,8 @@ function ProfileView({
                           if (!onTransferAdmin) return;
                           const confirmed = window.confirm(
                             otherAdmin 
-                              ? `${profile?.displayName || 'このユーザー'}の管理者権限を解除しますか？` 
-                              : `${profile?.displayName || 'このユーザー'}に管理者権限を付与しますか？`
+                              ? t('このユーザーの管理者権限を解除しますか？', `Are you sure you want to revoke admin permissions from ${profile?.displayName || 'this user'}?`)
+                              : t('このユーザーに管理者権限を付与しますか？', `Are you sure you want to grant admin permissions to ${profile?.displayName || 'this user'}?`)
                           );
                           if (!confirmed) return;
                           
@@ -4559,7 +5885,7 @@ function ProfileView({
                             await onTransferAdmin(uid, !otherAdmin);
                             setOtherAdmin(!otherAdmin);
                           } catch (err: any) {
-                            alert('更新に失敗しました: ' + err.message);
+                            alert(t('更新に失敗しました: ', 'Failed to update: ') + err.message);
                           }
                         }} 
                         className={cn(
@@ -4568,7 +5894,7 @@ function ProfileView({
                         )}
                       >
                         <Shield className="w-3 h-3" />
-                        {otherAdmin ? '管理者権限解除' : '管理者にする'}
+                        {otherAdmin ? t('管理者権限解除', 'Revoke Admin') : t('管理者にする', 'Make Admin')}
                       </button>
                     )}
                   </div>
@@ -4580,28 +5906,15 @@ function ProfileView({
             {/* 装備中のバッジ表示 */}
             {equippedBadgesList.length > 0 && (
               <div className="flex flex-wrap gap-2.5 mb-5 justify-center sm:justify-start items-center bg-orange-50/40 p-4 rounded-3xl border border-orange-100/60 max-w-md shadow-inner select-none">
-                <span className="text-[9px] font-black text-orange-400 uppercase tracking-widest mr-1 block">装備中バッジ</span>
-                <div className="flex gap-1.5 flex-wrap">
-                  {equippedBadgesList.map((badge, idx) => {
-                    const rStyle = getBadgeRarityStyle(badge.rarity);
-                    return (
-                      <div 
-                        key={badge.id}
-                        className={cn(
-                          "w-8 h-8 rounded-full border shadow-sm relative group cursor-pointer transition-transform hover:scale-110 flex items-center justify-center text-base",
-                          rStyle.bg,
-                          rStyle.border
-                        )}
-                      >
-                        <span>{badge.emoji}</span>
-                        {/* Tooltip */}
-                        <div className="absolute hidden group-hover:block bottom-full left-1/2 transform -translate-x-1/2 mb-2.5 w-40 bg-gray-900 text-white text-[9px] font-medium p-2 rounded-lg opacity-95 transition-opacity z-10 shadow-lg text-center leading-normal">
-                          <strong className="block font-black text-orange-200 text-[10px] mb-0.5">{badge.name}</strong>
-                          {badge.description}
-                        </div>
-                      </div>
-                    );
-                  })}
+                <span className="text-[9px] font-black text-orange-400 uppercase tracking-widest mr-1 block">{t('装備中バッジ', 'Equipped Badges')}</span>
+                <div className="flex gap-1.5 flex-wrap animate-in fade-in duration-200">
+                  {equippedBadgesList.map((badge) => (
+                    <BadgeDisplay 
+                      key={badge.id} 
+                      badge={badge} 
+                      size="lg" 
+                    />
+                  ))}
                 </div>
               </div>
             )}
@@ -4613,14 +5926,14 @@ function ProfileView({
                 className="text-center sm:text-left cursor-pointer hover:bg-orange-50/70 hover:scale-[1.03] active:scale-95 transition-all px-3.5 py-2 rounded-2xl border border-orange-100/50 flex items-center gap-1.5 focus:outline-none"
               >
                 <span className="text-base font-bold text-orange-950">{followingCount}</span>
-                <span className="text-[10px] font-bold text-orange-400 uppercase tracking-widest">フォロー中</span>
+                <span className="text-[10px] font-bold text-orange-400 uppercase tracking-widest">{t('フォロー中', 'Following')}</span>
               </button>
               <button 
                 onClick={() => openFollowsModal('followers')}
                 className="text-center sm:text-left cursor-pointer hover:bg-orange-50/70 hover:scale-[1.03] active:scale-95 transition-all px-3.5 py-2 rounded-2xl border border-orange-100/50 flex items-center gap-1.5 focus:outline-none"
               >
                 <span className="text-base font-bold text-orange-950">{followerCount}</span>
-                <span className="text-[10px] font-bold text-orange-400 uppercase tracking-widest">フォロワー</span>
+                <span className="text-[10px] font-bold text-orange-400 uppercase tracking-widest">{t('フォロワー', 'Followers')}</span>
               </button>
             </div>
             
@@ -4630,7 +5943,7 @@ function ProfileView({
                   type="text" 
                   value={msgContent}
                   onChange={e => setMsgContent(e.target.value)}
-                  placeholder="管理者からのメッセージ..."
+                  placeholder={t('管理者からのメッセージ...', 'Message from administrator...')}
                   className="flex-1 bg-orange-50 rounded-xl px-4 py-2 text-xs outline-none focus:ring-1 focus:ring-blue-500"
                 />
                 <button 
@@ -4643,7 +5956,7 @@ function ProfileView({
                   }}
                   className="bg-blue-500 text-white px-4 py-2 rounded-xl text-xs font-bold"
                 >
-                  送る
+                  {t('送る', 'Send')}
                 </button>
               </div>
             )}
@@ -4652,11 +5965,11 @@ function ProfileView({
 
         <div className="flex gap-8 border-t border-orange-50 pt-8">
           <div>
-            <p className="text-[10px] font-bold text-orange-300 uppercase tracking-widest mb-1">投稿数</p>
+            <p className="text-[10px] font-bold text-orange-300 uppercase tracking-widest mb-1">{t('投稿数', 'Posts')}</p>
             <p className="text-2xl font-bold text-orange-900">{scenes.length}</p>
           </div>
           <div>
-            <p className="text-[10px] font-bold text-orange-300 uppercase tracking-widest mb-1">総獲得👍</p>
+            <p className="text-[10px] font-bold text-orange-300 uppercase tracking-widest mb-1">{t('総獲得👍', 'Total Likes 👍')}</p>
             <p className="text-2xl font-bold text-orange-900">{scenes.reduce((acc, s) => acc + s.upvotes, 0)}</p>
           </div>
         </div>
@@ -4666,43 +5979,221 @@ function ProfileView({
           <div>
             <h3 className="text-sm font-bold text-orange-950 uppercase tracking-widest mb-4 flex items-center gap-2">
               <Activity className="w-4 h-4 text-orange-500" />
-              共感予測ゲーム 実績ボード
+              {t('共感予測ゲーム 実績ボード', 'Empathy Prediction Achievement Board')}
             </h3>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               <div className="bg-orange-50/55 p-4 rounded-2xl border border-orange-100/50 text-center">
-                <span className="text-[10px] font-black text-orange-400 block uppercase tracking-widest mb-1">判定数</span>
+                <span className="text-[10px] font-black text-orange-400 block uppercase tracking-widest mb-1">{t('判定数', 'Analyzed')}</span>
                 <span className="text-xl font-extrabold text-orange-900 font-mono">{stats.totalAnalyzed}</span>
-                <span className="text-[9px] text-orange-300 block">（閲覧5回以上の投稿）</span>
+                <span className="text-[9px] text-orange-300 block">{t('（閲覧5回以上の投稿）', '(Posts with 5+ Views)')}</span>
               </div>
               <div className="bg-orange-50/55 p-4 rounded-2xl border border-orange-100/50 text-center">
-                <span className="text-[10px] font-black text-orange-400 block uppercase tracking-widest mb-1">保留中</span>
+                <span className="text-[10px] font-black text-orange-400 block uppercase tracking-widest mb-1">{t('保留中', 'Pending')}</span>
                 <span className="text-xl font-extrabold text-orange-700 font-mono">{stats.totalPending}</span>
-                <span className="text-[9px] text-orange-300 block">（データ集計中）</span>
+                <span className="text-[9px] text-orange-300 block">{t('（データ集計中）', '(Calculating...)')}</span>
               </div>
               <div className="bg-orange-50/55 p-4 rounded-2xl border border-orange-100/50 text-center">
-                <span className="text-[10px] font-black text-orange-400 block uppercase tracking-widest mb-1">予測一致</span>
+                <span className="text-[10px] font-black text-orange-400 block uppercase tracking-widest mb-1">{t('予測一致', 'Matched Accuracy')}</span>
                 <span className="text-xl font-extrabold text-emerald-600 font-mono flex items-center justify-center gap-1">
                   <Target className="w-4 h-4" />
-                  {stats.totalSuccess}回
+                  {language === 'en' ? `${stats.totalSuccess} times` : `${stats.totalSuccess}回`}
                 </span>
-                <span className="text-[9px] text-emerald-600 block font-semibold">誤差10%以内クリア</span>
+                <span className="text-[9px] text-emerald-600 block font-semibold">{t('誤差10%以内クリア', 'Within 10% Error')}</span>
               </div>
               <div className="bg-orange-50/55 p-4 rounded-2xl border border-orange-100/50 text-center">
-                <span className="text-[10px] font-black text-orange-400 block uppercase tracking-widest mb-1">最大/現在の連鎖</span>
+                <span className="text-[10px] font-black text-orange-400 block uppercase tracking-widest mb-1">{t('最大/現在の連鎖', 'Max / Current Streak')}</span>
                 <span className="text-xl font-extrabold text-orange-600 font-mono flex items-center justify-center gap-1">
                   <Flame className="w-4 h-4" />
                   {stats.maxStreak} / {stats.currentStreak}
                 </span>
-                <span className="text-[9px] text-orange-300 block">連続クリア記録</span>
+                <span className="text-[9px] text-orange-300 block">{t('連続クリア記録', 'Consecutive streak')}</span>
               </div>
             </div>
           </div>
 
         </div>
+
+        {/* Promotion, Referral & Support Section (招待コード・ブログパーツ・おやつ応援) - Visible to owner */}
+        {isOwnProfile && (
+          <div className="mt-10 border-t-2 border-orange-100/50 pt-8 space-y-8 animate-in fade-in">
+            <div>
+              <h3 className="text-sm font-bold text-orange-950 uppercase tracking-widest mb-4 flex items-center gap-2">
+                <span>🚀 {t('地味っちを爆速で広めよう！ ＆ お小遣いを稼ごう！', 'Promote Jimicchi & Earn Coins!')}</span>
+              </h3>
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                
+                {/* 1. お友達招待でお互いに3,000コイン */}
+                <div className="bg-gradient-to-br from-amber-50 to-orange-50/60 p-6 rounded-[32px] border border-orange-100/60 flex flex-col justify-between">
+                  <div>
+                    <h4 className="text-xs font-black text-orange-900 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                      <span>👥 {t('友達を招待してガチャを回す', 'Refer Friends')}</span>
+                    </h4>
+                    <p className="text-[11px] font-bold text-orange-750/90 leading-relaxed mb-4">
+                      {t('あなた自身のユーザーID（招待コード）をお友達に教えましょう。お友達が登録するとお互いに3,000 J-Coinがプレゼントされます！', 'Share your User ID with friends. When they apply it, both will receive 3,000 J-Coins!')}
+                    </p>
+                    <div className="space-y-2.5 mb-4">
+                      <div>
+                        <span className="text-[9px] font-black text-orange-400 block mb-1">あなたの招待コード (UID)</span>
+                        <div className="flex">
+                          <input 
+                            type="text" 
+                            readOnly 
+                            value={uid}
+                            className="bg-white border border-orange-200 rounded-l-xl px-2.5 py-1.5 text-[9px] font-mono text-orange-900 flex-1 outline-none truncate"
+                          />
+                          <button 
+                            onClick={() => {
+                              navigator.clipboard.writeText(uid);
+                              alert(t('招待コードをコピーしました！', 'Referral code copied!'));
+                            }}
+                            className="bg-orange-500 hover:bg-orange-600 active:scale-95 text-white px-3 py-1.5 rounded-r-xl text-[9px] font-bold transition-all"
+                          >
+                            {t('コピー', 'Copy')}
+                          </button>
+                        </div>
+                      </div>
+
+                      <button 
+                        onClick={() => {
+                          const text = encodeURIComponent(t(
+                            `日々の地味〜な日常でゆるくつながる優しいSNS『地味っち』をはじめました！\n今なら招待コード【${uid}】を入力すると、アバターガチャに使える【3,000 J-Coin】がもらえます！一緒に地味あるあるしよう☕️\n#地味っち `, 
+                            `I joined Jimicchi, the cozy SNS for sharing subtle daily life moments! Apply referral code 【${uid}】 to receive 【3,000 J-Coins】! `
+                          ));
+                          const url = encodeURIComponent(window.location.origin);
+                          window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, '_blank');
+                        }}
+                        className="w-full bg-[#1DA1F2] hover:bg-[#1a91da] active:scale-95 text-white py-2 rounded-xl text-[10px] font-black transition-all flex items-center justify-center gap-1 shadow-sm"
+                      >
+                        <span>🐦 {t('X(Twitter)で招待を投稿', 'Post invite on X')}</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="pt-4 border-t border-orange-100/60">
+                    <span className="text-[9px] font-black text-orange-400 block mb-1">{t('紹介コードを入力する', 'Apply Referral Code')}</span>
+                    {profile?.referralCodeUsed ? (
+                      <div className="bg-orange-100/50 border border-orange-200/40 text-orange-700 rounded-xl px-3 py-2 text-[10px] font-bold truncate">
+                        ✓ {t('適用済み。お友達ID:', 'Code applied. Friend ID:')} <span className="font-mono text-[9px]">{profile.referralCodeUsed}</span>
+                      </div>
+                    ) : (
+                      <div className="flex gap-1.5">
+                        <input 
+                          type="text" 
+                          placeholder={t('お友達のUIDを入力...', 'Enter friend UID...')}
+                          value={refCodeInput}
+                          onChange={e => setRefCodeInput(e.target.value)}
+                          className="bg-white border border-orange-200 rounded-xl px-2.5 py-1.5 text-[9px] font-mono text-orange-950 flex-1 outline-none"
+                        />
+                        <button 
+                          onClick={handleApplyReferralCode}
+                          disabled={refLoading || !refCodeInput.trim()}
+                          className="bg-orange-600 hover:bg-orange-700 disabled:opacity-50 text-white px-3 py-1.5 rounded-xl text-[9px] font-bold transition-all whitespace-nowrap"
+                        >
+                          {refLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : t('適用', 'Apply')}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* 2. ブログパーツ (ブログウィジェット) */}
+                <div className="bg-gradient-to-br from-amber-50 to-orange-50/60 p-6 rounded-[32px] border border-orange-100/60 flex flex-col justify-between">
+                  <div>
+                    <h4 className="text-xs font-black text-orange-900 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                      <span>🖼️ {t('ブログに貼るだけでSEO（被リンク）', 'Blog Widgets')}</span>
+                    </h4>
+                    <p className="text-[11px] font-bold text-orange-750/90 leading-relaxed mb-4">
+                      {t('ご自身のブログ（WordPress/はてなブログ等）に「地味っち紹介ウィジェット」を貼り付けましょう。何気ない紹介が強力な被リンク（SEO）となり、Google検索エンジンにこのアプリが爆速で表示されるようになります！サーチコンソールは不要です。', 'Embed the Jimicchi Widget on your WordPress or blogging platform. It drives natural SEO backlinks allowing Googlebot to index Jimicchi instantly!')}
+                    </p>
+                  </div>
+
+                  <div>
+                    <span className="text-[9px] font-black text-orange-400 block mb-1">{t('書き出しiframeコード', 'Embed iframe Code')}</span>
+                    <div className="flex">
+                      <textarea 
+                        readOnly 
+                        rows={2}
+                        value={`<iframe src="${window.location.origin}/?widget=1&uid=${uid}" width="100%" height="420" style="border: 2px solid #fed7aa; border-radius: 28px; max-width: 320px;" frameborder="0"></iframe>`}
+                        className="bg-white border border-orange-200 rounded-l-xl px-2.5 py-1.5 text-[8.5px] font-mono text-orange-900 flex-1 outline-none resize-none"
+                      />
+                      <button 
+                        onClick={() => {
+                          const code = `<iframe src="${window.location.origin}/?widget=1&uid=${uid}" width="100%" height="420" style="border: 2px solid #fed7aa; border-radius: 28px; max-width: 320px;" frameborder="0"></iframe>`;
+                          navigator.clipboard.writeText(code);
+                          alert(t('ブログパーツの埋め込みコードをコピーしました！WordPress等にカスタムHTMLとして貼り付けてください。', 'Iframe code successfully copied! Paste it in WordPress custom HTML block.'));
+                        }}
+                        className="bg-orange-500 hover:bg-orange-600 active:scale-95 text-white px-3 py-1.5 rounded-r-xl text-[9px] font-bold transition-all flex flex-col justify-center items-center gap-1"
+                      >
+                        <span>{t('コピー', 'Copy')}</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. おやつの差し入れ (投げ銭リンク) の設定 */}
+                <div className="bg-gradient-to-br from-amber-50 to-orange-50/60 p-6 rounded-[32px] border border-orange-100/60 flex flex-col justify-between">
+                  <div>
+                    <h4 className="text-xs font-black text-orange-900 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                      <span>☕️ {t('おやつ応援（Kyash等の投げ銭リンク）', 'Setup Snack Gifts')}</span>
+                    </h4>
+                    <p className="text-[11px] font-bold text-orange-750/90 leading-relaxed mb-4">
+                      {t('銀行口座が作れなくても大丈夫！Kyash（コンビニ等で本人確認すれば送金リンクで受取・交換がすぐ可能）、OFUSE、gifteeなどの受け取りURLを設定できます。設定するとプロフに可愛い差し入れボタンが付き、サポーターからおやつ（受取金・電子マネー）を直接受け取れるようになります。', 'No bank account needed! Provide your Kyash remittance ID, OFUSE, or Amazon Gift list links. We add a cozy "Snack Gift" button so visitors can send tips/remittance directly to you.')}
+                    </p>
+                  </div>
+
+                  <div>
+                    <span className="text-[9px] font-black text-orange-400 block mb-1">{t('設定する決済・送金リンク', 'Tip / Snack link URL')}</span>
+                    {supportLinkEditing ? (
+                      <div className="space-y-1.5">
+                        <input 
+                          type="url" 
+                          placeholder="https://kyash.me/shares/... または OFUSEのURL"
+                          value={supportLinkInput}
+                          onChange={e => setSupportLinkInput(e.target.value)}
+                          className="bg-white border border-orange-200 rounded-xl px-2.5 py-1.5 text-[9px] font-mono text-orange-950 w-full outline-none"
+                        />
+                        <div className="flex gap-1">
+                          <button 
+                            onClick={handleUpdateSupportLink}
+                            disabled={supportLinkLoading}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-xl text-[9px] font-bold transition-all flex-1"
+                          >
+                            {supportLinkLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : t('保存', 'Save')}
+                          </button>
+                          <button 
+                            onClick={() => { setSupportLinkInput(profile?.supportLink || ''); setSupportLinkEditing(false); }}
+                            className="bg-stone-200 hover:bg-stone-300 text-stone-700 px-3 py-1.5 rounded-xl text-[9px] font-bold transition-all"
+                          >
+                            {t('キャンセル', 'Cancel')}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between p-2 bg-white border border-orange-100 rounded-xl">
+                        <span className="text-[8.5px] text-orange-600 font-semibold truncate flex-1 pr-2">
+                          {profile?.supportLink || t('設定されていません', 'Not configured')}
+                        </span>
+                        <button 
+                          onClick={() => setSupportLinkEditing(true)}
+                          className="bg-orange-100 hover:bg-orange-200 text-orange-700 px-2.5 py-1 rounded-lg text-[9px] font-black transition-all"
+                        >
+                          {t('編集', 'Edit')}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </div>
+        )}
+
       </div>
 
       <div className="space-y-6">
-        <h3 className="text-sm font-bold text-orange-900 uppercase tracking-widest">投稿したシーン</h3>
+        <h3 className="text-sm font-bold text-orange-900 uppercase tracking-widest">{t('投稿したシーン', 'Posted Scenes')}</h3>
         {scenes.map((scene) => (
           <SceneCard 
             key={scene.id} 
@@ -4715,11 +6206,13 @@ function ProfileView({
             isAdmin={isAdmin}
             onDelete={() => onDeleteScene?.(scene.id)}
             authorProfile={profiles?.[scene.authorId]}
+            currentUserProfile={profile}
             onCopy={onCopy}
+            onToggleSticker={onToggleSticker}
           />
         ))}
         {scenes.length === 0 && (
-          <p className="text-center py-20 text-orange-200">まだ投稿がありません。</p>
+          <p className="text-center py-20 text-orange-200">{t('まだ投稿がありません。', 'No posts yet.')}</p>
         )}
       </div>
 
@@ -4758,7 +6251,7 @@ function ProfileView({
               <div className="p-6 border-b border-orange-50 flex items-center justify-between bg-orange-50/20">
                 <h3 className="text-lg font-bold text-orange-950 flex items-center gap-2">
                   <Users className="w-5 h-5 text-orange-500" />
-                  {activeFollowsModal === 'followers' ? 'フォロワー一覧' : 'フォロー中一覧'}
+                  {activeFollowsModal === 'followers' ? t('フォロワー一覧', 'Followers') : t('フォロー中一覧', 'Following')}
                 </h3>
                 <button 
                   onClick={() => setActiveFollowsModal(null)} 
@@ -4775,7 +6268,7 @@ function ProfileView({
                   </div>
                 ) : followsUserIds.length === 0 ? (
                   <div className="text-center py-10 text-orange-300 text-xs italic">
-                    {activeFollowsModal === 'followers' ? 'フォロワーはまだいません。' : 'フォローしているユーザーはいません。'}
+                    {activeFollowsModal === 'followers' ? t('フォロワーはまだいません。', 'No followers yet.') : t('フォローしているユーザーはいません。', 'Not following anyone yet.')}
                   </div>
                 ) : (
                   followsUserIds.map(otherUid => {
@@ -4796,10 +6289,10 @@ function ProfileView({
                         />
                         <div className="flex-1 min-w-0">
                           <p className="font-bold text-orange-950 text-sm truncate flex items-center gap-1.5">
-                            <span>{otherProfileObj?.displayName || '地味っちユーザー'}</span>
+                            <span>{otherProfileObj?.displayName || t('地味っちユーザー', 'Jimicchi User')}</span>
                           </p>
                           <p className="text-xs text-orange-400/80 truncate">
-                            {otherProfileObj?.bio || '地味を楽しんでいます ☕'}
+                            {otherProfileObj?.bio || t('地味を楽しんでいます ☕', 'Enjoying subtlety ☕')}
                           </p>
                         </div>
                         <ChevronRight className="w-4 h-4 text-orange-200" />
@@ -5194,9 +6687,31 @@ function EditProfileModal({ profile, onClose, onSave }: { profile: Profile, onCl
   );
 }
 
-function AdminPanel({ reports, onClose, onDeleteScene, onBanUser, onCreateAnnouncement, stats }: { reports: Report[], onClose: () => void, onDeleteScene: (id: string) => void, onBanUser: (uid: string, s: boolean) => void, onCreateAnnouncement: (t: string, c: string, i?: string) => void, stats: { totalUsers: number, activeUsers24h: number, totalScenes: number } | null }) {
+function AdminPanel({ 
+  reports, 
+  onClose, 
+  onDeleteScene, 
+  onBanUser, 
+  onCreateAnnouncement, 
+  stats,
+  botLogs,
+  setBotLogs,
+  isSimulating,
+  triggerBotSimulation
+}: { 
+  reports: Report[], 
+  onClose: () => void, 
+  onDeleteScene: (id: string) => void, 
+  onBanUser: (uid: string, s: boolean) => void, 
+  onCreateAnnouncement: (t: string, c: string, i?: string) => void, 
+  stats: { totalUsers: number, activeUsers24h: number, totalScenes: number } | null,
+  botLogs: string[],
+  setBotLogs: React.Dispatch<React.SetStateAction<string[]>>,
+  isSimulating: boolean,
+  triggerBotSimulation: (botId?: string) => Promise<void>
+}) {
   const { language, t } = useLanguage();
-  const [tab, setTab] = useState<'reports' | 'announcement' | 'stats' | 'campaigns' | 'admins' | 'ranking_rewards' | 'gift_codes'>('reports');
+  const [tab, setTab] = useState<'reports' | 'announcement' | 'stats' | 'campaigns' | 'admins' | 'ranking_rewards' | 'gift_codes' | 'bot_sim' | 'jse_creations'>('reports');
 
   // Admin Gift Code management states
   const [adminGiftCodes, setAdminGiftCodes] = useState<any[]>([]);
@@ -5207,6 +6722,133 @@ function AdminPanel({ reports, onClose, onDeleteScene, onBanUser, onCreateAnnoun
   const [adminTargetUid, setAdminTargetUid] = useState('');
   const [adminSelectedCodeId, setAdminSelectedCodeId] = useState<string | null>(null);
   const [adminCodeRedemptions, setAdminCodeRedemptions] = useState<any[]>([]);
+
+  // JSE Creations state and handlers
+  const [jseRequests, setJseRequests] = useState<any[]>([]);
+
+  // Load creations
+  useEffect(() => {
+    if (tab !== 'jse_creations') return;
+    const q = query(collection(db, 'jse_creation_requests'), orderBy('createdAt', 'desc'));
+    const unsub = onSnapshot(q, (snap) => {
+      const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setJseRequests(list);
+    }, (err) => {
+      console.error("Failed to load JSE creation requests under admin:", err);
+    });
+    return () => unsub();
+  }, [tab]);
+
+  const handleApproveJseRequest = async (request: any) => {
+    try {
+      const confirmApprove = window.confirm(`本当に「${request.stockName}」の上場を承認しますか？`);
+      if (!confirmApprove) return;
+
+      // Generate a unique stock ID from request name
+      const cleanNameEn = (request.stockNameEn || request.stockName)
+        .toLowerCase()
+        .replace(/[^a-z0-9_]/g, '_')
+        .replace(/__+/g, '_') || 'custom_stock_' + Date.now().toString(36);
+      const stockId = `cust_${cleanNameEn}_${Math.floor(Math.random() * 1000)}`;
+
+      // Create the custom stock entry
+      const cleanKeywords = [
+        request.stockName,
+        request.category,
+        'カスタム株'
+      ].filter(Boolean);
+
+      await setDoc(doc(db, 'jse_custom_stocks', stockId), {
+        id: stockId,
+        emoji: request.emoji || '📈',
+        name: request.stockName,
+        nameEn: request.stockNameEn || request.stockName,
+        keywords: cleanKeywords,
+        basePrice: 100, // Starts at 100J base price
+        category: request.category || 'Other',
+        descriptionJa: request.descJa || '',
+        descriptionEn: request.descEn || '',
+        founderId: request.founderId,
+        founderName: request.founderName,
+        createdAt: new Date().toISOString()
+      });
+
+      // Update request status
+      await updateDoc(doc(db, 'jse_creation_requests', request.id), {
+        status: 'approved',
+        rejectionReason: '',
+        approvedStockId: stockId
+      });
+
+      // Grant founder badge to the founder's profile (append to unlockedBadgeIds)
+      const founderProfileRef = doc(db, 'profiles', request.founderId);
+      const founderSnap = await getDoc(founderProfileRef);
+      if (founderSnap.exists()) {
+        const founderData = founderSnap.data();
+        const unlockedBadgeIds = founderData.unlockedBadgeIds || [];
+        const targetBadgeId = `badge_founder_${stockId}`;
+        if (!unlockedBadgeIds.includes(targetBadgeId)) {
+          unlockedBadgeIds.push(targetBadgeId);
+          await updateDoc(founderProfileRef, { unlockedBadgeIds });
+        }
+      }
+
+      // Send notification message
+      await addDoc(collection(db, 'admin_messages'), {
+        recipientId: request.founderId,
+        senderId: 'admin_user',
+        content: `🎉 祝！あなたが申請した現象株「${request.stockName}」が、運営より正式に【承認】されJSE（地味ストック取引所）に上場しました！「ゴールド創設者バッジ」がマイページに付与されました。さっそく装備して、みんなにアピールしましょう！`,
+        createdAt: new Date().toISOString(),
+        read: false,
+        type: 'jse_approval'
+      });
+
+      alert(`🎉 現象株「${request.stockName}」が承認・上場されました！バッジとメッセージが創設者に送信されました。`);
+    } catch (err: any) {
+      console.error("Failed to approve JSE request:", err);
+      alert('⚠️ 承認処理に失敗しました: ' + err.message);
+    }
+  };
+
+  const handleRejectJseRequest = async (request: any) => {
+    try {
+      const reason = window.prompt(`「${request.stockName}」の上場申請を却下する理由を入力してください：`);
+      if (reason === null) return; // Cancelled
+      const cleanReason = reason.trim() || '不適切な表現、または実在の個人・学校・政治的発言・誹謗中傷が含まれるため却下されました。';
+
+      // Update request status
+      await updateDoc(doc(db, 'jse_creation_requests', request.id), {
+        status: 'rejected',
+        rejectionReason: cleanReason
+      });
+
+      // Refund spent coins to developer's profile standard coins!
+      const founderProfileRef = doc(db, 'profiles', request.founderId);
+      const founderSnap = await getDoc(founderProfileRef);
+      if (founderSnap.exists()) {
+        const founderData = founderSnap.data();
+        const curCoins = founderData.coins || 0;
+        await updateDoc(founderProfileRef, {
+          coins: curCoins + request.coinsSpent
+        });
+      }
+
+      // Send notification explanation
+      await addDoc(collection(db, 'admin_messages'), {
+        recipientId: request.founderId,
+        senderId: 'admin_user',
+        content: `⚠️ 【JSE上場却下通知】申請された現象株「${request.stockName}」は、審査ガイドラインに基づき非承認となりました。理由：${cleanReason}\n※申請時にデポジットされた経費 ${request.coinsSpent}枚 はウォレットへ全額払い戻されました。`,
+        createdAt: new Date().toISOString(),
+        read: false,
+        type: 'jse_rejection'
+      });
+
+      alert(`⚠️ 申請を却下し、創設者に ${request.coinsSpent} コインを払い戻しました。`);
+    } catch (err: any) {
+      console.error("Failed to reject JSE request:", err);
+      alert('⚠️ 却下処理に失敗しました: ' + err.message);
+    }
+  };
 
   // Load all gift codes
   useEffect(() => {
@@ -6178,6 +7820,18 @@ function AdminPanel({ reports, onClose, onDeleteScene, onBanUser, onCreateAnnoun
                 className={cn("px-4 py-1.5 rounded-full text-xs font-bold transition-all", tab === 'ranking_rewards' ? "bg-orange-500 text-white" : "text-orange-300 hover:bg-orange-50")}
               >
                 ランキング報酬 🏆
+              </button>
+              <button 
+                onClick={() => setTab('bot_sim')}
+                className={cn("px-4 py-1.5 rounded-full text-xs font-bold transition-all", tab === 'bot_sim' ? "bg-orange-500 text-white" : "text-orange-300 hover:bg-orange-50")}
+              >
+                ボット管理 🤖
+              </button>
+              <button 
+                onClick={() => setTab('jse_creations')}
+                className={cn("px-4 py-1.5 rounded-full text-xs font-bold transition-all", tab === 'jse_creations' ? "bg-orange-500 text-white" : "text-orange-300 hover:bg-orange-50")}
+              >
+                JSE上場審査 📈
               </button>
               {auth.currentUser?.email === 'kuailitengben@gmail.com' && (
                 <button 
@@ -8225,6 +9879,109 @@ function AdminPanel({ reports, onClose, onDeleteScene, onBanUser, onCreateAnnoun
 
               </div>
             </div>
+          ) : tab === 'bot_sim' ? (
+            <BotSimTab
+              botLogs={botLogs}
+              setBotLogs={setBotLogs}
+              isSimulating={isSimulating}
+              triggerBotSimulation={triggerBotSimulation}
+            />
+          ) : tab === 'jse_creations' ? (
+            <div className="space-y-6">
+              <div className="flex justify-between items-center bg-orange-950/20 p-4.5 rounded-[22px] border border-orange-500/15">
+                <div>
+                  <h3 className="text-sm font-extrabold text-amber-300">JSE 地味株・新規現象上場審査</h3>
+                  <p className="text-[10px] text-orange-200 mt-1">
+                    ユーザーが一定量のコイン（デポジット）をかけて申請した自作の日常現象です。誹謗中傷、人名、代表的企業ブランド、学校名、差別表現が無いか審査してください。
+                  </p>
+                </div>
+                <div className="bg-orange-500 text-white font-extrabold text-[10px] px-3 py-1 rounded-full">
+                  未処理件数: {jseRequests.filter(r => r.status === 'pending').length}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4">
+                {jseRequests.map((req) => {
+                  const isPending = req.status === 'pending';
+                  const isApproved = req.status === 'approved';
+                  return (
+                    <div 
+                      key={req.id} 
+                      className={cn(
+                        "p-5 rounded-3xl border transition flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-orange-950/10",
+                        isPending ? "border-amber-450 bg-amber-500/5 animate-pulse-slow" : isApproved ? "border-emerald-500/30 bg-emerald-550/5" : "border-stone-800 bg-stone-900/40"
+                      )}
+                    >
+                      <div className="space-y-2 flex-grow">
+                        <div className="flex items-center gap-2.5">
+                          <span className="text-2xl p-2 bg-black/20 rounded-xl">{req.emoji || '📈'}</span>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h4 className="text-sm font-black text-amber-200">{req.stockName}</h4>
+                              <span className="text-[8.5px] uppercase font-mono tracking-widest bg-orange-400 text-orange-950 px-2 py-0.5 rounded-md font-bold">
+                                {req.category || '未分類'}
+                              </span>
+                            </div>
+                            <p className="text-[10px] text-orange-200/80 mt-0.5 font-mono">{req.stockNameEn}</p>
+                          </div>
+                        </div>
+
+                        <div className="text-[10.5px] text-stone-200 bg-black/15 p-3 rounded-2xl border border-white/5 space-y-1">
+                          <p className="font-bold text-amber-200/90">💡 現象・商品説明文:</p>
+                          <p className="leading-relaxed whitespace-pre-wrap">{req.descJa || '説明文がありません。'}</p>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[9.5px] font-bold text-orange-300">
+                          <span>👤 申請者: <strong className="text-white select-all">{req.founderName || '匿名'}</strong></span>
+                          <span>🆔 申請者ID: <code className="text-stone-400 select-all">{req.founderId}</code></span>
+                          <span>💰 かけたコイン額: <span className="text-amber-300 font-extrabold">{req.coinsSpent} コイン</span></span>
+                          <span>📅 申請日時: <span className="text-stone-400">{req.createdAt ? new Date(req.createdAt).toLocaleString() : '不明'}</span></span>
+                        </div>
+
+                        {req.rejectionReason && (
+                          <div className="text-[10px] text-red-400 font-bold mt-2 bg-red-500/15 p-2 rounded-xl border border-red-500/25 max-w-xl">
+                            ❌ 却下理由: {req.rejectionReason}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
+                        {isPending ? (
+                          <>
+                            <button
+                              onClick={() => handleApproveJseRequest(req)}
+                              className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white text-[10.5px] font-black rounded-xl transition shadow-lg shadow-emerald-500/10 cursor-pointer"
+                            >
+                              上場承認 ✅
+                            </button>
+                            <button
+                              onClick={() => handleRejectJseRequest(req)}
+                              className="px-4 py-2 bg-red-650 hover:bg-red-700 active:scale-95 text-white text-[10.5px] font-black rounded-xl transition shadow-lg shadow-red-500/10 cursor-pointer"
+                            >
+                              却下・返金 ❌
+                            </button>
+                          </>
+                        ) : (
+                          <span className={cn(
+                            "px-3 py-1 text-[10px] font-black rounded-full select-none",
+                            isApproved ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/20" : "bg-zinc-850 text-zinc-450"
+                          )}>
+                            {isApproved ? '承認・上場済み' : '非承認・返金済み'}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {jseRequests.length === 0 && (
+                  <div className="text-center py-16 text-slate-450 space-y-2">
+                    <span className="text-4xl">🏜️</span>
+                    <p className="text-xs font-bold font-mono">現在、新しい上場申請はありません。</p>
+                  </div>
+                )}
+              </div>
+            </div>
           ) : (
             <div className="space-y-6">
               <h3 className="text-sm font-bold text-orange-300 uppercase tracking-widest text-center">サービス統計</h3>
@@ -8701,7 +10458,7 @@ function AnnouncementHistoryModal({ announcements, onClose }: { announcements: A
   );
 }
 
-function AuthModal({ onClose }: { onClose: () => void }) {
+function AuthModal({ onClose, onViewChange }: { onClose: () => void; onViewChange: (view: any) => void }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showGuide, setShowGuide] = useState(false);
@@ -8830,7 +10587,15 @@ function AuthModal({ onClose }: { onClose: () => void }) {
               )}
 
               <div className="space-y-6 text-center">
-                <p className="text-sm font-medium text-orange-800 leading-relaxed text-left">
+                <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/30 rounded-2xl p-4 text-left flex gap-3 cursor-pointer hover:bg-amber-100/50 dark:hover:bg-amber-950/40 transition-colors" onClick={() => { onViewChange('about'); onClose(); }}>
+                  <span className="text-xl shrink-0">🌟</span>
+                  <div className="space-y-0.5">
+                    <p className="text-xs font-black text-amber-950 dark:text-amber-300">地味っちを初めて利用する方へ</p>
+                    <p className="text-[11px] text-amber-700 dark:text-amber-400 font-bold">詳しい使い方、ゲーム要素、高校生Pocoが開発した想いなどをまとめた「公式紹介ホームページ」を見る ↗</p>
+                  </div>
+                </div>
+
+                <p className="text-sm font-medium text-orange-850 dark:text-zinc-300 leading-relaxed text-left">
                   地味っちでは、Googleアカウントによる簡単ログインを採用しています。面倒なパスワード管理や複雑な個人情報の入力は一切不要です。<br />
                   <span className="text-xs text-orange-400">※ボタンをクリックするだけで、セキュアにログインおよび自動登録が行われます。</span>
                 </p>
@@ -8962,6 +10727,102 @@ function AuthModal({ onClose }: { onClose: () => void }) {
           )}
         </div>
       </motion.div>
+    </div>
+  );
+}
+
+
+
+interface BotSimTabProps {
+  botLogs: string[];
+  setBotLogs: React.Dispatch<React.SetStateAction<string[]>>;
+  isSimulating: boolean;
+  triggerBotSimulation: (botId?: string) => Promise<void>;
+}
+
+function BotSimTab({ botLogs, setBotLogs, isSimulating, triggerBotSimulation }: BotSimTabProps) {
+  const STATIC_BOTS = [
+    { name: "田中@年中布団コアラ", bio: "布団から這い出ることが生きがい、のはずが毎日這い出せなくなっているコアラ。", uid: "bot_tanaka", avatar: "https://api.dicebear.com/7.x/bottts/svg?seed=tanaka" },
+    { name: "ゆかちん@充電1%勝負", bio: "スマホ充電を1%でどれだけ長く稼働させられるかに命を燃やすスリルジャンキー。", uid: "bot_yuka", avatar: "https://api.dicebear.com/7.x/bottts/svg?seed=yuka" },
+    { name: "サトシ@風呂お断り", bio: "夜の入浴タイミングを最大限サボる方法を研究中。「めんどい」が世界を救う。", uid: "bot_satoshy", avatar: "https://api.dicebear.com/7.x/bottts/svg?seed=satoshy" },
+    { name: "じみ太郎@宿題先延ばし", bio: "今できることを絶対に明日以降に回すプロフェッショナル。", uid: "bot_jimi_taro", avatar: "https://api.dicebear.com/7.x/bottts/svg?seed=jimi_taro" },
+    { name: "みみ@夜更かしプリンセス", bio: "特にすることもないのに深夜2時に虚無スマホしている住人。", uid: "bot_sleepy_mimi", avatar: "https://api.dicebear.com/7.x/bottts/svg?seed=mimi" },
+  ];
+
+  return (
+    <div className="space-y-6 text-orange-950">
+      <div className="bg-orange-50/50 p-6 rounded-3xl border border-orange-100">
+        <h3 className="text-base font-black text-orange-950 mb-2 flex items-center gap-2">
+          <span>🤖 地味っちAIボット・シミュレーター</span>
+        </h3>
+        <p className="text-xs font-bold text-orange-850 mb-4 leading-relaxed">
+          地味っちのアクティビティを増やすため、5名の自律AIボットが自動投稿・投票などのアクションを計画します。
+          安全にシミュレーションを行うため、承認済みの管理者セッションを利用して直接クライアントからFirestoreへアクションがコミットされます（エラーを完全に防ぎます）。
+        </p>
+
+        <button
+          onClick={() => triggerBotSimulation()}
+          disabled={isSimulating}
+          className="w-full py-4 bg-orange-600 hover:bg-orange-700 text-white font-extrabold text-sm rounded-2xl shadow-md transition active:scale-95 disabled:opacity-50 text-center flex items-center justify-center gap-2 cursor-pointer"
+        >
+          {isSimulating ? (
+            <span>シミュレーション進行中(AI生成&確認)... ⚙️</span>
+          ) : (
+            <span>⚡ 即座にランダムなボットの動きをトリガーする</span>
+          )}
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Bots List */}
+        <div className="bg-white border border-orange-100 p-5 rounded-3xl space-y-4 font-sans text-stone-900">
+          <h4 className="text-xs font-bold text-orange-900 border-b border-orange-100 pb-2">
+            👥 稼働中のメンバー一覧 (5名)
+          </h4>
+          <div className="space-y-3">
+            {STATIC_BOTS.map(b => (
+              <div key={b.uid} className="flex gap-3 items-start bg-orange-50/40 p-3 rounded-2xl border border-orange-100/50 text-stone-900">
+                <img src={b.avatar} alt={b.name} className="w-10 h-10 rounded-xl bg-orange-100 p-1 border border-orange-200" referrerPolicy="no-referrer" />
+                <div className="space-y-1 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-black text-orange-950">{b.name}</span>
+                    <span className="text-[8px] bg-emerald-100 text-emerald-700 font-extrabold px-1.5 py-0.5 rounded-full">ACTIVE</span>
+                  </div>
+                  <p className="text-[10px] text-orange-700 font-bold leading-tight">{b.bio}</p>
+                  <p className="text-[9px] font-mono text-orange-400">UID: {b.uid}</p>
+                  <div className="pt-1">
+                    <button
+                      onClick={() => triggerBotSimulation(b.uid)}
+                      disabled={isSimulating}
+                      className="text-[9px] bg-orange-700 hover:bg-orange-850 disabled:opacity-40 text-white font-black px-2 py-0.5 rounded border border-orange-800 transition shadow-inner active:scale-95 cursor-pointer"
+                    >
+                      ⚡ このボットを今すぐ行動させる
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Live Admin Manual Log */}
+        <div className="bg-slate-950 text-emerald-300 p-5 rounded-3xl font-mono text-xs space-y-3 border-2 border-slate-900 h-[360px] flex flex-col overflow-hidden">
+          <div className="flex justify-between items-center border-b border-slate-950/60 pb-2 text-[10px] text-emerald-500 font-black shrink-0 animate-pulse">
+            <span>CONSOLE LOGS</span>
+            <span className="text-emerald-400 font-black">● LIVE</span>
+          </div>
+          <div className="flex-1 overflow-y-auto space-y-2 pr-1 font-bold scrollbar-thin">
+            {botLogs.map((log, index) => (
+              <p key={index} className="leading-relaxed">{log}</p>
+            ))}
+            {botLogs.length === 0 && (
+              <p className="text-slate-500 italic text-[11px] py-10 text-center">
+                上記のボタンを押すと、こちらに実行ログが最新順に表示されます。
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

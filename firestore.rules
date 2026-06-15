@@ -5,233 +5,90 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // Reusable global helpers
     function isSignedIn() {
       return request.auth != null;
     }
-    
-    function isDefaultAdmin() {
-      return isSignedIn() && (
-        request.auth.token.email == 'nakashi198006130423@gmail.com' &&
-        (!exists(/databases/$(database)/documents/profiles/$(request.auth.uid)) ||
-         get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.get('adminRevoked', false) != true)
-      );
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
     }
 
     function isAdmin() {
       return isSignedIn() && (
-        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) || 
-        request.auth.token.email == 'kuailitengben@gmail.com' ||
-        isDefaultAdmin()
+        ( 'email' in request.auth.token && (
+          request.auth.token.email == 'kuailitengben@gmail.com' ||
+          request.auth.token.email == 'nakashi198006130423@gmail.com'
+        )) ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
       );
     }
 
     function isBanned() {
-      // Safely check if the current user's profile has isBanned: true
       return isSignedIn() && 
              exists(/databases/$(database)/documents/profiles/$(request.auth.uid)) &&
              get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.get('isBanned', false) == true;
     }
 
+    // Validation definitions
     function isValidId(id) {
       return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
-    
+
     function incoming() {
       return request.resource.data;
     }
-    
+
     function existing() {
       return resource.data;
     }
-    
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
 
-    function isValidScene(data, isCreate) {
-      return data.keys().hasAll(['title', 'content', 'authorId', 'authorName', 'authorPhoto', 'createdAt', 'upvotes']) &&
-             data.title is string && data.title.size() <= 200 &&
-             data.content is string && data.content.size() <= 2000 &&
-             (!data.keys().hasAll(['imageUrl']) || data.imageUrl == null || data.imageUrl is string) &&
-             (!data.keys().hasAll(['hashtags']) || data.hashtags is list) &&
-             (!data.keys().hasAll(['views']) || data.views is int) &&
-             (!data.keys().hasAll(['commentCount']) || data.commentCount is int) &&
-             (!data.keys().hasAll(['profileVisits']) || data.profileVisits is int) &&
-             data.authorId == request.auth.uid &&
-             data.createdAt == (isCreate ? request.time : existing().createdAt) &&
-             data.upvotes is int && (isCreate ? data.upvotes == 0 : true) &&
-             (isCreate ? (!data.keys().hasAll(['views']) || data.views == 0) : true) &&
-             (isCreate ? (!data.keys().hasAll(['commentCount']) || data.commentCount == 0) : true) &&
-             (isCreate ? (!data.keys().hasAll(['profileVisits']) || data.profileVisits == 0) : true);
-    }
-
-    function isValidFollow(data) {
-      return data.followerId == request.auth.uid;
-    }
-
-    function isValidChat(data) {
-      return (request.auth.uid in data.participants);
-    }
-
-    function isValidMessage(data, chatId) {
-      return data.senderId == request.auth.uid;
-    }
-
-    function isValidComment(data) {
-      return data.authorId == request.auth.uid;
-    }
-
-    function isValidUpvote(data) {
-      return data.userId == request.auth.uid;
-    }
-
-    function isValidGiftCode(data, isCreate) {
-      return data.keys().hasAll(['code', 'creator_uid', 'creator_name', 'reward_gc', 'created_at', 'expire_at', 'max_uses', 'used_count', 'active']) &&
-             data.code is string && data.code.size() <= 64 &&
-             data.creator_uid is string && (isCreate ? (data.creator_uid == request.auth.uid || isAdmin()) : true) &&
-             data.creator_name is string && data.creator_name.size() <= 100 &&
-             data.reward_gc is int && data.reward_gc > 0 &&
-             data.max_uses is int && data.max_uses > 0 &&
-             data.used_count is int && data.used_count >= 0 &&
-             data.active is bool &&
-             (isCreate ? (data.used_count == 0) : true) &&
-             (!data.keys().hasAll(['target_uid']) || data.target_uid == null || data.target_uid is string) &&
-             (!data.keys().hasAll(['campaign_name']) || data.campaign_name is string);
-    }
-
-    function isValidGiftRedemption(data) {
-      return data.keys().hasAll(['user_uid', 'code', 'reward_gc', 'redeemed_at']) &&
-             data.user_uid == request.auth.uid &&
-             data.code is string && data.code.size() <= 64 &&
-             data.reward_gc is int && data.reward_gc > 0;
-    }
-
-    function isValidProfile(data) {
-      return data.keys().hasAll(['displayName', 'photoURL']) &&
-             data.keys().size() >= 2 && data.keys().size() <= 60 &&
-             data.displayName is string && data.displayName.size() <= 100 &&
-             data.photoURL is string &&
-             (!data.keys().hasAll(['bio']) || data.bio == null || data.bio is string) &&
-             (!data.keys().hasAll(['updatedAt']) || data.updatedAt == null || data.updatedAt is timestamp || data.updatedAt is string) &&
-             (!data.keys().hasAll(['isBanned']) || data.isBanned is bool) &&
-             (!data.keys().hasAll(['lastReadAnnouncementId']) || data.lastReadAnnouncementId is string) &&
-             (!data.keys().hasAll(['lastActiveAt']) || data.lastActiveAt is timestamp || data.lastActiveAt is string) &&
-             (!data.keys().hasAll(['selectedTitle']) || data.selectedTitle == null || data.selectedTitle is string) &&
-             (!data.keys().hasAll(['equippedBadges']) || data.equippedBadges is list) &&
-             (!data.keys().hasAll(['postsCount']) || data.postsCount is int || data.postsCount == null) &&
-             (!data.keys().hasAll(['deletedPostsCount']) || data.deletedPostsCount is int || data.deletedPostsCount == null) &&
-             (!data.keys().hasAll(['loginStreak']) || data.loginStreak is int || data.loginStreak == null) &&
-             (!data.keys().hasAll(['lastLoginDate']) || data.lastLoginDate is string || data.lastLoginDate == null) &&
-             (!data.keys().hasAll(['totalLoginDays']) || data.totalLoginDays is int || data.totalLoginDays == null) &&
-             (!data.keys().hasAll(['viewsCount']) || data.viewsCount is int || data.viewsCount == null) &&
-             (!data.keys().hasAll(['upvotesReceived']) || data.upvotesReceived is int || data.upvotesReceived == null) &&
-             (!data.keys().hasAll(['maxUpvotesOnSinglePost']) || data.maxUpvotesOnSinglePost is int || data.maxUpvotesOnSinglePost == null) &&
-             (!data.keys().hasAll(['midnightPostsCount']) || data.midnightPostsCount is int || data.midnightPostsCount == null) &&
-             (!data.keys().hasAll(['commentRate']) || data.commentRate is int || data.commentRate is float || data.commentRate == null) &&
-             (!data.keys().hasAll(['weekdayDaytimePostsCount']) || data.weekdayDaytimePostsCount is int || data.weekdayDaytimePostsCount == null) &&
-             (!data.keys().hasAll(['midnightActiveStreak']) || data.midnightActiveStreak is int || data.midnightActiveStreak == null) &&
-             (!data.keys().hasAll(['commentsBlockedCount']) || data.commentsBlockedCount is int || data.commentsBlockedCount == null) &&
-             (!data.keys().hasAll(['gachaWon']) || data.gachaWon is bool || data.gachaWon == null) &&
-             (!data.keys().hasAll(['returnedAfter30Days']) || data.returnedAfter30Days is bool || data.returnedAfter30Days == null) &&
-             (!data.keys().hasAll(['opsSecret']) || data.opsSecret is bool || data.opsSecret == null) &&
-             (!data.keys().hasAll(['myCommentsCount']) || data.myCommentsCount is int || data.myCommentsCount == null) &&
-             (!data.keys().hasAll(['isTopPercentile']) || data.isTopPercentile is bool || data.isTopPercentile == null) &&
-             (!data.keys().hasAll(['registeredAt']) || data.registeredAt is timestamp || data.registeredAt is string || data.registeredAt == null) &&
-             (!data.keys().hasAll(['hasSeenTutorial']) || data.hasSeenTutorial is bool || data.hasSeenTutorial == null) &&
-             (!data.keys().hasAll(['midnightViewsCount']) || data.midnightViewsCount is int || data.midnightViewsCount == null) &&
-             (!data.keys().hasAll(['unlockedPrefixIds']) || data.unlockedPrefixIds is list) &&
-             (!data.keys().hasAll(['unlockedSuffixIds']) || data.unlockedSuffixIds is list) &&
-             (!data.keys().hasAll(['unlockedBadgeIds']) || data.unlockedBadgeIds is list) &&
-             (!data.keys().hasAll(['celebratedBadgeIds']) || data.celebratedBadgeIds is list) &&
-             (!data.keys().hasAll(['celebratedPrefixIds']) || data.celebratedPrefixIds is list) &&
-             (!data.keys().hasAll(['celebratedSuffixIds']) || data.celebratedSuffixIds is list) &&
-             (!data.keys().hasAll(['coins']) || data.coins is int) &&
-             (!data.keys().hasAll(['shards']) || data.shards is int);
-    }
-
-    match /scenes/{sceneId} {
-      allow list, get: if true;
-      allow create: if isSignedIn() && !isBanned() && isValidScene(incoming(), true) && isValidId(sceneId);
-      
-      allow update: if (
-        // Action: Increment view count
-        (incoming().diff(existing()).affectedKeys().hasOnly(['views']) &&
-         incoming().get('views', 1) == existing().get('views', 0) + 1)
-      ) || (
-        // Action: Increment comments count
-        (incoming().diff(existing()).affectedKeys().hasOnly(['commentCount']) &&
-         incoming().get('commentCount', 1) == existing().get('commentCount', 0) + 1)
-      ) || (
-        // Action: Increment profile visits count
-        (incoming().diff(existing()).affectedKeys().hasOnly(['profileVisits']) &&
-         incoming().get('profileVisits', 1) == existing().get('profileVisits', 0) + 1)
-      ) || (
-        isSignedIn() && !isBanned() && (
-          // Action: Upvote/Un-upvote
-          (incoming().diff(existing()).affectedKeys().hasOnly(['upvotes']) && 
-           (incoming().upvotes == existing().upvotes + 1 || incoming().upvotes == existing().upvotes - 1)) ||
-          // Action: Edit (owner only)
-          (isOwner(existing().authorId) && 
-           isValidScene(incoming(), false) &&
-           incoming().upvotes == existing().upvotes
-          ) ||
-          // Action: Profile Sync (owner only updates metadata)
-          (isOwner(existing().authorId) && 
-           incoming().diff(existing()).affectedKeys().hasOnly(['authorName', 'authorPhoto']) &&
-           incoming().authorName is string && incoming().authorPhoto is string
-          )
-        )
-      );
-      
-      allow delete: if isOwner(existing().authorId) || isAdmin();
-
-      match /comments/{commentId} {
-        allow read: if true;
-        allow create: if isSignedIn() && !isBanned() && isValidComment(incoming()) && isValidId(commentId);
-        allow update: if isOwner(existing().authorId) && 
-                         incoming().diff(existing()).affectedKeys().hasOnly(['authorName', 'authorPhoto']);
-        allow delete: if isOwner(existing().authorId) || isAdmin();
-      }
-    }
-
-    match /follows/{followId} {
-      allow read: if true;
-      allow create: if isSignedIn() && isValidFollow(incoming());
-      allow delete: if isSignedIn() && isOwner(existing().followerId);
-    }
-
-    match /chats/{chatId} {
-      allow read: if isSignedIn() && request.auth.uid in resource.data.participants;
-      allow create: if isSignedIn() && isValidChat(incoming());
-      allow update: if isSignedIn() && request.auth.uid in resource.data.participants;
-
-      match /messages/{messageId} {
-        allow read: if isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
-        allow create: if isSignedIn() && isValidMessage(incoming(), chatId) && 
-                         request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
-        allow update: if isSignedIn() && 
-                         request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants &&
-                         incoming().diff(existing()).affectedKeys().hasOnly(['read']) &&
-                         incoming().read is bool;
-      }
+    // Matches for each collection
+    match /admins/{userId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
     }
 
     match /profiles/{userId} {
       allow read: if true;
-      allow update: if (
-        isOwner(userId) && 
-        (!existing().keys().hasAll(['isBanned']) || existing().isBanned == false) &&
-        (!incoming().diff(existing()).affectedKeys().hasAny(['isBanned', 'adminRevoked'])) &&
-        (!incoming().keys().hasAll(['displayName']) || (incoming().displayName is string && incoming().displayName.size() <= 100)) &&
-        (!incoming().keys().hasAll(['photoURL']) || incoming().photoURL is string) &&
-        (!incoming().keys().hasAll(['bio']) || incoming().bio == null || incoming().bio is string)
-      ) || isAdmin();
-      allow create: if isOwner(userId) && isValidProfile(incoming());
+      allow create: if isOwner(userId) || isAdmin();
+      allow update: if isOwner(userId) || isAdmin();
+      allow delete: if isAdmin();
     }
 
-    match /admins/{userId} {
-      allow read: if isSignedIn();
-      allow write: if isAdmin() || (isOwner(userId) && request.auth.token.email == 'kuailitengben@gmail.com');
+    match /scenes/{sceneId} {
+      allow read, list: if true;
+      allow create: if isSignedIn() && !isBanned();
+      allow update: if (isSignedIn() && !isBanned()) || isAdmin();
+      allow delete: if (isSignedIn() && !isBanned()) || isAdmin();
+
+      match /comments/{commentId} {
+        allow read: if true;
+        allow create: if isSignedIn() && !isBanned();
+        allow update, delete: if isSignedIn() && !isBanned();
+      }
+    }
+
+    match /upvotes/{upvoteId} {
+      allow read, list: if true;
+      allow create: if isSignedIn() && !isBanned();
+      allow delete: if isSignedIn() && !isBanned();
+    }
+
+    match /follows/{followId} {
+      allow read: if true;
+      allow create: if isSignedIn() && !isBanned();
+      allow delete: if isSignedIn() && !isBanned();
+    }
+
+    match /chats/{chatId} {
+      allow read, update: if isSignedIn() && (request.auth.uid in resource.data.participants);
+      allow create: if isSignedIn() && !isBanned();
+
+      match /messages/{messageId} {
+        allow read: if isSignedIn() && (request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants);
+        allow create: if isSignedIn() && !isBanned() && (request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants);
+      }
     }
 
     match /reports/{reportId} {
@@ -240,25 +97,95 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    match /admin_messages/{messageId} {
+      allow read: if isSignedIn() && (request.auth.uid == resource.data.recipientId || isAdmin());
+      allow create: if isSignedIn() && (request.resource.data.senderId == request.auth.uid || request.resource.data.senderId == 'system_kairanban' || isAdmin());
+      allow update: if isSignedIn() && request.auth.uid == resource.data.recipientId;
+      allow delete: if isAdmin();
+    }
+
     match /announcements/{announcementId} {
       allow read: if true;
       allow create, update, delete: if isAdmin();
     }
 
-    match /campaigns/{campaignId} {
+    match /settings/{settingId} {
       allow read: if true;
       allow create, update, delete: if isAdmin();
+    }
+
+    match /legal_documents/{docId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /plaza_surveys/{surveyId} {
+      allow read: if true;
+      allow create: if isSignedIn() && !isBanned();
+      allow update: if isSignedIn() && !isBanned();
+      allow delete: if isAdmin();
+
+      match /votes/{voteId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn() && !isBanned();
+        allow update, delete: if isSignedIn() && !isBanned();
+      }
+    }
+
+    match /plaza_submissions/{subId} {
+      allow read, list: if true;
+      allow create, update: if isSignedIn() && !isBanned();
+      allow delete: if isAdmin();
+    }
+
+    match /plaza_votes/{voteId} {
+      allow read, list: if isSignedIn();
+      allow create, update: if isSignedIn() && !isBanned();
+      allow delete: if isAdmin();
+    }
+
+    match /plaza_books/{bookId} {
+      allow read, list: if true;
+      allow create, update: if isSignedIn() && !isBanned();
+      allow delete: if isAdmin();
+    }
+
+    match /jse_reports/{reportId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /jse_global_trades/{tradeId} {
+      allow read: if true;
+      allow create: if isSignedIn() && !isBanned();
+      allow update, delete: if isAdmin();
+    }
+
+    match /gift_codes/{codeId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /gift_redemptions/{redemptionId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && !isBanned();
+      allow update, delete: if isAdmin();
+    }
+
+    match /login_bonuses/{bonusId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /login_claims/{claimId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && !isBanned();
+      allow update, delete: if isSignedIn() && !isBanned();
     }
 
     match /gacha_pools/{poolId} {
       allow read: if true;
       allow create, update, delete: if isAdmin();
-    }
-
-    match /campaignClaims/{claimId} {
-      allow read: if isSignedIn() && (claimId.startsWith(request.auth.uid + '_') || resource == null || resource.data.userId == request.auth.uid);
-      allow create: if isSignedIn() && (claimId.startsWith(request.auth.uid + '_') || request.resource.data.userId == request.auth.uid);
-      allow update, delete: if isAdmin();
     }
 
     match /customBadges/{badgeId} {
@@ -271,110 +198,41 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
-    match /admin_messages/{messageId} {
-      allow read: if isSignedIn() && (request.auth.uid == resource.data.recipientId || isAdmin());
-      allow create: if isSignedIn() && (incoming().senderId == request.auth.uid || isAdmin());
-      allow update: if isSignedIn() && request.auth.uid == resource.data.recipientId && incoming().diff(existing()).affectedKeys().hasOnly(['read']);
-      allow delete: if isAdmin();
-    }
-
-    match /upvotes/{upvoteId} {
-      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
-      allow get: if isSignedIn();
-      allow create: if isSignedIn() && isValidUpvote(incoming());
-      allow delete: if isSignedIn() && existing().userId == request.auth.uid;
-    }
-    
-    match /settings/{settingId} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-
-    match /plaza_submissions/{subId} {
-      allow read: if true;
-      allow create: if isSignedIn() && !isBanned() && request.auth.uid == incoming().userId;
-      allow update: if isSignedIn() && (
-        (incoming().diff(existing()).affectedKeys().hasOnly(['votesCount'])) ||
-        (request.auth.uid == existing().userId && !isBanned()) ||
-        isAdmin()
-      );
-      allow delete: if (isSignedIn() && request.auth.uid == existing().userId) || isAdmin();
-    }
-
-    match /plaza_votes/{voteId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && request.auth.uid == incoming().userId;
-      allow update, delete: if isSignedIn() && request.auth.uid == existing().userId;
-    }
-
-    match /plaza_books/{bookId} {
-      allow read: if true;
-      allow create: if isSignedIn() && !isBanned() && request.auth.uid == incoming().authorId;
-      allow update: if isSignedIn() && (
-        (incoming().diff(existing()).affectedKeys().hasAny(['likesCount', 'likedBy', 'empathiesCount', 'empathizedBy'])) ||
-        (request.auth.uid == existing().authorId && !isBanned()) ||
-        isAdmin()
-      );
-      allow delete: if (isSignedIn() && request.auth.uid == existing().authorId) || isAdmin();
-    }
-
-    match /login_bonuses/{bonusId} {
+    match /campaigns/{campaignId} {
       allow read: if true;
       allow create, update, delete: if isAdmin();
     }
 
-    match /login_claims/{claimId} {
-      allow read: if isSignedIn() && (claimId.startsWith(request.auth.uid + '_') || resource == null || resource.data.userId == request.auth.uid);
-      allow create, update: if isSignedIn() && (claimId.startsWith(request.auth.uid + '_') || incoming().userId == request.auth.uid);
-      allow delete: if isAdmin();
-    }
-
-    match /gift_codes/{codeId} {
-      allow get: if isSignedIn();
-      allow list: if isAdmin();
-      allow create: if isSignedIn() && !isBanned() && isValidGiftCode(incoming(), true);
-      allow update: if (
-        // Action: standard user increment used_count upon claiming code
-        (isSignedIn() && !isBanned() && 
-         incoming().diff(existing()).affectedKeys().hasOnly(['used_count']) &&
-         incoming().used_count == existing().used_count + 1) ||
-        // Action: creator toggle active toggle
-        (isSignedIn() && !isBanned() && existing().creator_uid == request.auth.uid &&
-         incoming().diff(existing()).affectedKeys().hasOnly(['active']) &&
-         incoming().active is bool) ||
-        // Action: Admin updates
-        isAdmin()
-      );
-      allow delete: if isAdmin() || (isSignedIn() && existing().creator_uid == request.auth.uid);
-    }
-
-    match /gift_redemptions/{redemptionId} {
-      allow list: if isSignedIn() && (resource.data.user_uid == request.auth.uid || isAdmin());
-      allow get: if isSignedIn() && (resource.data.user_uid == request.auth.uid || isAdmin());
-      allow create: if isSignedIn() && !isBanned() && isValidGiftRedemption(incoming()) && 
-                       (redemptionId.startsWith(request.auth.uid + '_') || redemptionId == request.auth.uid + '_' + incoming().code);
+    match /campaignClaims/{claimId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && !isBanned() && request.resource.data.userId == request.auth.uid;
       allow update, delete: if isAdmin();
     }
 
-    match /legal_documents/{docId} {
-      allow read: if true;
-      allow write: if isAdmin();
+    match /jse_creation_requests/{requestId} {
+      allow read: if isSignedIn() && (resource.data.founderId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && !isBanned() && request.resource.data.founderId == request.auth.uid;
+      allow update: if isAdmin() || (isSignedIn() && !isBanned() && resource.data.founderId == request.auth.uid);
+      allow delete: if isAdmin();
     }
 
-    match /plaza_surveys/{surveyId} {
+    match /jse_custom_stocks/{stockId} {
       allow read: if true;
-      allow create: if isSignedIn() && (request.auth.uid == incoming().authorId || incoming().authorId == 'system' || isAdmin());
-      allow update: if (isSignedIn() && (
-        (incoming().diff(existing()).affectedKeys().hasAny(['yesVotes', 'noVotes'])) ||
-        (request.auth.uid == existing().authorId)
-      )) || isAdmin();
-      allow delete: if (isSignedIn() && request.auth.uid == existing().authorId) || isAdmin();
+      allow create: if isSignedIn() && !isBanned() && request.resource.data.founderId == request.auth.uid;
+      allow update: if isAdmin() || (isSignedIn() && !isBanned() && resource.data.founderId == request.auth.uid);
+      allow delete: if isAdmin();
+    }
 
-      match /votes/{voteId} {
-        allow read: if isSignedIn();
-        allow create: if isSignedIn() && (voteId == request.auth.uid || incoming().userId == request.auth.uid);
-        allow update, delete: if isSignedIn() && existing().userId == request.auth.uid;
-      }
+    match /jse_founder_rewards/{rewardId} {
+      allow read: if isSignedIn() && (resource.data.founderId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && !isBanned() && request.resource.data.founderId == request.auth.uid;
+      allow update: if isSignedIn() && !isBanned() && resource.data.founderId == request.auth.uid;
+      allow delete: if isAdmin();
+    }
+
+    match /jse_config/{configId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
     }
 
     match /test/connection {
