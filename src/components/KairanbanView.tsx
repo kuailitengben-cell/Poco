@@ -577,7 +577,7 @@ export default function KairanbanView({
       </div>
 
       {/* Main Fullscreen Stage */}
-      <div className="flex-1 w-full max-w-lg mx-auto relative flex items-center justify-center p-4">
+      <div className="flex-1 w-full max-w-lg mx-auto relative flex items-center justify-center p-2 sm:p-4 min-h-0">
         {filteredScenes.length === 0 ? (
           <div className="text-center p-8 bg-[#2d1b13]/80 rounded-3xl border border-orange-900/40 backdrop-blur text-orange-200 z-10">
             <AlertTriangle className="w-12 h-12 text-orange-400 mx-auto mb-4" />
@@ -587,27 +587,6 @@ export default function KairanbanView({
         ) : (
           <div className="w-full h-full relative flex flex-col justify-center items-center">
             
-            {/* Gesture Helper Indicators for first load */}
-            <div className="absolute left-2 text-[10px] uppercase tracking-wider font-mono text-orange-400/30 font-bold hidden md:flex flex-col gap-1 items-center z-10">
-              <span className="animate-bounce">↑</span>
-              <span>Drag / Wheel To Switch</span>
-              <span>↓</span>
-            </div>
-
-            {/* Drawing Pin / Tack (画鋲 / Pin Animation) */}
-            <div className="absolute top-[8%] z-30 pointer-events-none transition-transform duration-300 transform -translate-y-1/2">
-              <div className={`relative flex items-center justify-center transition-all duration-300 ${pinState === 'unpinned' ? 'scale-125 -translate-y-4 filter drop-shadow-xl' : 'scale-100 translate-y-0 filter drop-shadow'}`}>
-                {/* 3D look Thumbtack */}
-                <div className="w-8 h-8 rounded-full bg-red-600 border border-red-700 shadow flex items-center justify-center relative">
-                  <div className="absolute top-1 left-1 w-3 h-3 bg-white/40 rounded-full"></div>
-                  {/* Pin silver needle point shadow */}
-                  <div className="w-2 h-2 rounded-full bg-slate-400/80 border border-slate-500"></div>
-                </div>
-                {/* Visual shadow under thumbtack */}
-                <div className={`absolute bottom-[-16px] w-4 h-1 bg-black/40 rounded-full blur-xs transition-opacity duration-300 ${pinState === 'unpinned' ? 'opacity-20 scale-150' : 'opacity-60 scale-100'}`} />
-              </div>
-            </div>
-
             {/* The Floating Relatable Sheet of Paper */}
             <motion.div
               drag="y"
@@ -625,7 +604,7 @@ export default function KairanbanView({
                 scale: { type: 'spring', stiffness: 220, damping: 24 },
                 rotate: { type: 'tween', duration: 0.3 }
               }}
-              className={`relative z-20 w-full max-w-[360px] aspect-[4/5] rounded-[24px] shadow-2xl flex flex-col p-8 select-text cursor-grab active:cursor-grabbing border ${
+              className={`relative z-20 w-full max-w-[340px] h-[38vh] xs:h-[42vh] sm:h-[45vh] max-h-[380px] rounded-[24px] shadow-2xl flex flex-col p-4 sm:p-5 select-text cursor-grab active:cursor-grabbing border ${
                 isYellowed 
                   ? 'bg-gradient-to-b from-[#f5ebd2] to-[#eedec0] text-amber-950 border-[#dfcaa1]' 
                   : 'bg-gradient-to-b from-[#faf9f6] to-[#f4f1ea] text-stone-900 border-stone-200/50'
@@ -638,7 +617,7 @@ export default function KairanbanView({
             >
               
               {/* Paper Visual State Stamps (Aged, Highly Circulated or Highly Refreshed stamps) */}
-              <div className="absolute top-4 right-4 flex gap-1.5 pointer-events-none">
+              <div className="absolute top-3 right-3 flex gap-1.5 pointer-events-none">
                 {hasCirculationPin && (
                   <div className="bg-red-500/10 text-red-600 border border-red-500/30 text-[9px] font-bold px-2 py-0.5 rounded-full flex items-center gap-0.5 animate-pulse">
                     <span>📌</span>
@@ -657,9 +636,9 @@ export default function KairanbanView({
                   </div>
                 )}
               </div>
-
+ 
               {/* Author & Creator Metadata Card */}
-              <div className="flex items-center gap-2.5 mb-6 border-b border-dashed border-stone-900/10 pb-4">
+              <div className="flex items-center gap-2 mb-3 border-b border-dashed border-stone-900/10 pb-2.5">
                 <img 
                   src={currentScene.authorPhoto || `https://api.dicebear.com/7.x/bottts/svg?seed=${currentScene.authorId}`}
                   alt={currentScene.authorName}
@@ -691,7 +670,7 @@ export default function KairanbanView({
               </div>
 
                {/* Huge Post Content Body - Simple focus-centric layout */}
-              <div className="flex-1 flex flex-col justify-center py-2 overflow-y-auto no-scrollbar">
+              <div className="flex-1 flex flex-col py-1 overflow-y-auto no-scrollbar min-h-0">
                 <div className="relative p-5 bg-stone-100/40 border border-stone-250/30 rounded-[2rem] overflow-hidden mb-3">
                   {/* 3D Geological Fossil Overlay covering the entire Post box inside Kairanban */}
                   <FossilOverlay percentage={fossilInfo?.percentage || 0} sceneId={currentScene.id} />
@@ -755,8 +734,8 @@ export default function KairanbanView({
               </button>
             </div>
 
-            {/* Pagination Bullet bar at the absolute bottom of viewport */}
-            <div className="absolute bottom-[2%] flex justify-center gap-1.5 pointer-events-auto">
+            {/* Pagination Bullet bar right underneath the paper card */}
+            <div className="mt-3.5 flex justify-center gap-1.5 pointer-events-auto shrink-0 z-30">
               {filteredScenes.slice(Math.max(0, currentIndex - 4), Math.min(filteredScenes.length, currentIndex + 5)).map((it, idx) => {
                 const absoluteIndex = filteredScenes.indexOf(it);
                 const isActive = absoluteIndex === currentIndex;
@@ -776,7 +755,7 @@ export default function KairanbanView({
 
       {/* Fullscreen Interactive Action footer HUD */}
       {currentScene && (
-        <div className="relative z-10 w-full max-w-lg mx-auto bg-gradient-to-t from-[#241712] via-[#2d1b13] to-transparent py-6 px-4 flex flex-col gap-4">
+        <div className="relative z-10 w-full max-w-lg mx-auto bg-gradient-to-t from-[#241712] via-[#2d1b13] to-transparent py-3 px-4 flex flex-col gap-2.5 shrink-0">
           
           <div className="flex items-center justify-around gap-2 px-2">
             

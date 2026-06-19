@@ -918,6 +918,72 @@ export default function App() {
     }
   };
 
+  const [sashiireTargetData, setSashiireTargetData] = useState<{
+    uid: string;
+    displayName: string;
+    supportLink: string;
+    isSelf: boolean;
+  } | null>(null);
+  const [sashiireTargetLoading, setSashiireTargetLoading] = useState(false);
+
+  useEffect(() => {
+    if (!showGeneralSashiireModal || !user) {
+      setSashiireTargetData(null);
+      return;
+    }
+
+    const fetchTargetProfile = async () => {
+      setSashiireTargetLoading(true);
+      try {
+        let targetUid: string | null = null;
+        let isSelf = false;
+
+        // 1. If looking at profile (even self, to test)
+        if (view === 'profile' && viewedProfileId) {
+          targetUid = viewedProfileId;
+          isSelf = viewedProfileId === user.uid;
+        }
+        // 2. If reading scene (even self, to test2)
+        else if (selectedScene && selectedScene.authorId) {
+          targetUid = selectedScene.authorId;
+          isSelf = selectedScene.authorId === user.uid;
+        }
+        // 3. Defaults to self view to check own links
+        else {
+          targetUid = user.uid;
+          isSelf = true;
+        }
+
+        if (targetUid) {
+          const docRef = doc(db, 'profiles', targetUid);
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            setSashiireTargetData({
+              uid: targetUid,
+              displayName: data.displayName || (isSelf ? t("あなた", "You") : "地味っちユーザー"),
+              supportLink: data.supportLink || "",
+              isSelf
+            });
+          } else {
+            setSashiireTargetData({
+              uid: targetUid,
+              displayName: isSelf ? t("あなた", "You") : "地味っちユーザー",
+              supportLink: "",
+              isSelf
+            });
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching sashiire target profile:", err);
+      } finally {
+        setSashiireTargetLoading(false);
+      }
+    };
+
+    fetchTargetProfile();
+  }, [showGeneralSashiireModal, view, viewedProfileId, selectedScene, user]);
+
   // Reactive transitions for interactive tutorial
   useEffect(() => {
     if (tutorialStep === null) return;
@@ -3884,105 +3950,97 @@ export default function App() {
 
               <div className="space-y-4 overflow-y-auto pr-1 flex-1">
                 {/* 1. Target Tipping (Sends to currently viewed profile or selected scene author) */}
-                {(() => {
-                  let targetUid: string | null = null;
-                  let targetName = "";
-                  let targetLink = "";
-                  let contextLabel = "";
-
-                  // Priority A: Profile view
-                  if (view === 'profile' && viewedProfileId && viewedProfileId !== user.uid) {
-                    const p = profiles[viewedProfileId];
-                    if (p) {
-                      targetUid = viewedProfileId;
-                      targetName = p.displayName || "地味っちユーザー";
-                      targetLink = p.supportLink || "";
-                      contextLabel = t("プロフィール閲覧中のユーザー", "User whose profile you are viewing");
-                    }
-                  }
-                  // Priority B: Selected Scene author
-                  else if (selectedScene && selectedScene.authorId && selectedScene.authorId !== user.uid) {
-                    targetUid = selectedScene.authorId;
-                    targetName = selectedScene.authorName || "地味っちユーザー";
-                    const p = profiles[selectedScene.authorId];
-                    targetLink = p?.supportLink || selectedScene.supportLink || "";
-                    contextLabel = t("閲覧中の地味話の投稿主", "Author of the scene you are reading");
-                  }
-
-                  if (targetUid) {
-                    return (
-                      <div className="bg-amber-50/70 border border-amber-200/50 rounded-2xl p-4 space-y-3">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-xs bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full font-black text-[10px]">
-                            {contextLabel}
-                          </span>
-                        </div>
-                        <div>
-                          <h4 className="text-sm font-black text-orange-950">
-                            {targetName} さんにおやつを届ける
-                          </h4>
-                          <p className="text-[10px] text-orange-700 font-bold mt-1 leading-normal">
-                            「あるある！」「共感した！」の感謝を込めて、おいしいお菓子やコーヒー代の気持ち（送金やギフト）を直接届けましょう。
-                          </p>
-                        </div>
-
-                        {targetLink ? (
-                          <button
-                            onClick={async () => {
-                              try {
-                                // Increment Counter in database
-                                const profileRef = doc(db, 'profiles', targetUid!);
-                                await updateDoc(profileRef, {
-                                  sashiireCount: increment(1)
-                                });
-                                
-                                // Send Notification
-                                const senderName = userProfile?.displayName || user.displayName || '誰か';
-                                await addDoc(collection(db, 'admin_messages'), {
-                                  recipientId: targetUid!,
-                                  senderId: user.uid,
-                                  content: `☕️ ${senderName}さんから「差し入れ（おやつ応援）」が届きました！温かい応援ありがとうございます！`,
-                                  createdAt: serverTimestamp(),
-                                  read: false,
-                                  type: 'sashiire'
-                                });
-
-                                alert(t('差し入れ窓口へジャンプします！美味しいおやつを届けて盛り上げましょう！🎁☕️', 'Launching support URL! Send them yummy snacks and power up their creation!🎁☕️'));
-                                window.open(targetLink, '_blank', 'noopener,noreferrer');
-                              } catch (e) {
-                                console.error(e);
-                                window.open(targetLink, '_blank', 'noopener,noreferrer');
-                              }
-                            }}
-                            className="w-full py-2.5 bg-gradient-to-r from-orange-400 to-amber-500 hover:from-orange-500 hover:to-amber-600 text-white font-black text-xs rounded-xl shadow-md transition-all active:scale-[0.98] flex items-center justify-center gap-1 border-0 cursor-pointer"
-                          >
-                            <span>🎁 {targetName} さんに差し入れを送る</span>
-                            <ChevronRight className="w-3.5 h-3.5" />
-                          </button>
-                        ) : (
-                          <div className="p-3 bg-stone-50 border border-stone-200/50 rounded-xl">
-                            <p className="text-[10px] text-stone-500 font-bold leading-normal">
-                              ⚠️ {targetName} さんはまだおやつの受け取り用（PayPay・Kyash等）の支援URLを登録していません。
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  }
-
-                  return (
-                    <div className="bg-orange-50/40 border border-orange-100/50 rounded-2xl p-4 text-center space-y-2">
-                      <span className="text-2xl block animate-bounce">☕️</span>
-                      <p className="text-xs text-orange-955 font-black">
-                        みんなにおやつを届けよう
-                      </p>
-                      <p className="text-[10px] text-orange-700/90 font-bold leading-relaxed max-w-xs mx-auto">
-                        地味なお話でおもしろい共感を生み出してくれた人に、美味しいコーヒーやお菓子を「差し入れ（投げ銭・電子マネー送金）」して応援できます！<br/>
-                        お話の詳細画面や気になる人のプロフィールから差し入れを送ることができます。
+                {sashiireTargetLoading ? (
+                  <div className="flex flex-col items-center justify-center p-8 space-y-2 bg-amber-50/30 rounded-2xl border border-amber-100">
+                    <Loader2 className="w-6 h-6 animate-spin text-orange-500" />
+                    <span className="text-[10px] text-orange-700/80 font-bold">{t("おやつ設定を取得中...", "Fetching support details...")}</span>
+                  </div>
+                ) : sashiireTargetData ? (
+                  <div className="bg-amber-50/70 border border-amber-200/50 rounded-2xl p-4 space-y-3">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full font-black text-[10px]">
+                        {sashiireTargetData.isSelf ? t("あなたの設定のテスト", "Testing Your Setup") : t("おやつお届け先", "Recipient")}
+                      </span>
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-black text-orange-950">
+                        {sashiireTargetData.displayName} さんにおやつを届ける
+                      </h4>
+                      <p className="text-[10px] text-orange-700 font-bold mt-1 leading-normal">
+                        「あるある！」「共感した！」の感謝を込めて、おいしいお菓子やコーヒー代の気持ち（送金やギフト）を直接届けましょう。
                       </p>
                     </div>
-                  );
-                })()}
+
+                    {sashiireTargetData.supportLink ? (
+                      <button
+                        onClick={async () => {
+                          try {
+                            if (!sashiireTargetData.isSelf) {
+                              // Increment Counter in database
+                              const profileRef = doc(db, 'profiles', sashiireTargetData.uid);
+                              await updateDoc(profileRef, {
+                                sashiireCount: increment(1)
+                              });
+                              
+                              // Send Notification
+                              const senderName = userProfile?.displayName || user.displayName || '誰か';
+                              await addDoc(collection(db, 'admin_messages'), {
+                                recipientId: sashiireTargetData.uid,
+                                senderId: user.uid,
+                                content: `☕️ ${senderName}さんからあなたの地味話・プロフに「差し入れ（おやつ応援）」が届きました！温かい応援ありがとうございます！`,
+                                createdAt: serverTimestamp(),
+                                read: false,
+                                type: 'sashiire'
+                              });
+                            }
+
+                            // Detect if PayPay or not to show custom alert text
+                            const isPayPay = sashiireTargetData.supportLink.toLowerCase().includes('paypay') || sashiireTargetData.supportLink.includes('paypay.ne.jp');
+                            const appName = isPayPay ? 'PayPay' : '差し入れ受け取り窓口（Kyash/OFUSE等）';
+                            
+                            alert(t(`投稿主の ${appName} へジャンプします！美味しいおやつを届けて盛り上げましょう！🎁☕️`, `Launching creator's support page! Send them yummy snacks and power up their creation!🎁☕️`));
+                            window.open(sashiireTargetData.supportLink, '_blank', 'noopener,noreferrer');
+                          } catch (e) {
+                            console.error(e);
+                            window.open(sashiireTargetData.supportLink, '_blank', 'noopener,noreferrer');
+                          }
+                        }}
+                        className="w-full py-2.5 bg-gradient-to-r from-orange-400 to-amber-500 hover:from-orange-500 hover:to-amber-600 text-white font-black text-xs rounded-xl shadow-md transition-all active:scale-[0.98] flex items-center justify-center gap-1 border-0 cursor-pointer"
+                      >
+                        <span>🎁 {sashiireTargetData.displayName} さんに差し入れを送る</span>
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
+                    ) : (
+                      <div className="p-3 bg-stone-50 border border-stone-200/50 rounded-xl space-y-2">
+                        <p className="text-[10px] text-stone-500 font-bold leading-normal">
+                          ⚠️ {sashiireTargetData.displayName} さんはまだおやつの受け取り用（PayPay・Kyash等）の支援URLを登録していません。
+                        </p>
+                        {sashiireTargetData.isSelf && (
+                          <button
+                            onClick={() => {
+                              setShowGeneralSashiireModal(false);
+                              setShowSupportLinkModal(true);
+                            }}
+                            className="text-[10px] underline text-orange-600 font-bold block bg-transparent border-0 cursor-pointer p-0"
+                          >
+                            今すぐ PayPay や Kyash の投げ銭リンクを登録する
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="bg-orange-50/40 border border-orange-100/50 rounded-2xl p-4 text-center space-y-2">
+                    <span className="text-2xl block animate-bounce">☕️</span>
+                    <p className="text-xs text-orange-955 font-black">
+                      みんなにおやつを届けよう
+                    </p>
+                    <p className="text-[10px] text-orange-700/90 font-bold leading-relaxed max-w-xs mx-auto">
+                      地味なお話でおもしろい共感を生み出してくれた人に、美味しいコーヒーやお菓子を「差し入れ（投げ銭・電子マネー送金）」して応援できます！<br/>
+                      お話の詳細画面や気になる人のプロフィールから差し入れを送ることができます。
+                    </p>
+                  </div>
+                )}
 
                 {/* 2. Admin/Management support */}
                 <div className="bg-orange-50/70 border border-orange-100/60 rounded-2xl p-4 space-y-3">
