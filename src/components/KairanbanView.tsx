@@ -327,8 +327,18 @@ export default function KairanbanView({
 
       // Display cute alert & route url
       if (authorData?.supportLink) {
-        alert('クリエイターの差し入れ窓口（支援URL）へジャンプします！美味しいおやつを届けて盛り上げましょう！☕️');
-        window.open(authorData.supportLink, '_blank', 'noopener,noreferrer');
+        const link = authorData.supportLink.trim();
+        const isPayPay = link.toLowerCase().includes('paypay') || link.includes('paypay.ne.jp');
+        const isKyash = link.toLowerCase().includes('kyash');
+        const targetName = authorData.displayName || currentScene.authorName || '投稿主';
+        
+        let appName = 'おやつ差し入れ窓口';
+        if (isPayPay) appName = 'PayPay 送金・受け取り窓口';
+        else if (isKyash) appName = 'Kyash 受け取り窓口';
+        else if (link.toLowerCase().includes('ofuse')) appName = 'OFUSE 応援窓口';
+
+        alert(`投稿主の ${appName} (${targetName}さん 宛) へジャンプします！美味しいおやつやコーヒーを届けて盛り上げましょう！🎁☕️`);
+        window.open(link, '_blank', 'noopener,noreferrer');
       } else {
         alert('差し入れありがとうございます！温かいおやつの気持ち「差し入れ☕️」が投稿主の元へ届きました。');
       }
@@ -529,7 +539,7 @@ export default function KairanbanView({
 
 
   return (
-    <div className="fixed inset-0 z-50 overflow-hidden bg-[#241712] select-none flex flex-col font-sans transition-colors duration-300">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-[#241712] flex flex-col font-sans transition-colors duration-300 pb-16">
       
       {/* Immersive cork board background layer */}
       <div className="absolute inset-0 z-0 bg-[#3d271d] opacity-90" style={{
