@@ -36,7 +36,7 @@ import {
 import { Scene, Comment, Profile } from '../types';
 import { db } from '../lib/firebase';
 import { calculateFossilInfo } from '../utils/fossilUtils';
-import { FossilizedContent } from './FossilizedContent';
+import { FossilizedContent, FossilOverlay } from './FossilizedContent';
 import FossilChipStation from './FossilChipStation';
 
 
@@ -690,10 +690,13 @@ export default function KairanbanView({
                 </div>
               </div>
 
-              {/* Huge Post Content Body - Simple focus-centric layout */}
+               {/* Huge Post Content Body - Simple focus-centric layout */}
               <div className="flex-1 flex flex-col justify-center py-2 overflow-y-auto no-scrollbar">
-                <>
-                  <h2 className="text-lg sm:text-xl font-extrabold tracking-tight mb-3 text-stone-900 font-sans leading-snug flex items-center justify-between gap-1.5">
+                <div className="relative p-5 bg-stone-100/40 border border-stone-250/30 rounded-[2rem] overflow-hidden mb-3">
+                  {/* 3D Geological Fossil Overlay covering the entire Post box inside Kairanban */}
+                  <FossilOverlay percentage={fossilInfo?.percentage || 0} sceneId={currentScene.id} />
+
+                  <h2 className="text-lg sm:text-xl font-extrabold tracking-tight mb-2.5 text-stone-900 font-sans leading-snug flex items-center justify-between gap-1.5">
                     <span className="truncate">
                       <FossilizedContent text={currentScene.title} percentage={fossilInfo?.percentage || 0} sceneId={currentScene.id} isTitle={true} />
                     </span>
@@ -703,19 +706,20 @@ export default function KairanbanView({
                       </span>
                     )}
                   </h2>
-                  <p className="text-sm font-bold leading-relaxed text-stone-800 whitespace-pre-line font-serif">
+                  
+                  <p className="text-sm font-bold leading-relaxed text-stone-800 whitespace-pre-line font-serif mb-2.5">
                     <FossilizedContent text={currentScene.content} percentage={fossilInfo?.percentage || 0} sceneId={currentScene.id} isTitle={false} />
                   </p>
 
-                  {/* Interactive incremental stone-chipping station */}
-                  <FossilChipStation scene={currentScene} currentUserProfile={profile} onChipped={() => {}} />
-
                   {currentScene.imageUrl && (
-                    <div className="mt-4 rounded-xl overflow-hidden border border-stone-200 shadow-xs max-h-[140px] flex items-center justify-center">
+                    <div className="mt-2 rounded-xl overflow-hidden border border-stone-200 shadow-xs max-h-[120px] flex items-center justify-center">
                       <img src={currentScene.imageUrl} alt="attachment" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                     </div>
                   )}
-                </>
+                </div>
+
+                {/* Interactive incremental stone-chipping station */}
+                <FossilChipStation scene={currentScene} currentUserProfile={profile} onChipped={() => {}} />
               </div>
 
               {/* Inline display showing circulating volume */}

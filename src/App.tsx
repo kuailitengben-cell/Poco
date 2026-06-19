@@ -35,7 +35,7 @@ import {
 import { Scene, Comment, OperationType, FirestoreErrorInfo, Profile, Report, AdminMessage, Chat, Message, Announcement } from './types';
 import { cn } from './lib/utils';
 import { calculateFossilInfo } from './utils/fossilUtils';
-import { FossilizedContent } from './components/FossilizedContent';
+import { FossilizedContent, FossilOverlay } from './components/FossilizedContent';
 import FossilChipStation from './components/FossilChipStation';
 import JimiPlazaView from './components/JimiPlazaView';
 import { JseView } from './components/JseView';
@@ -233,6 +233,8 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showSubmit, setShowSubmit] = useState(false);
+  const [submitTitle, setSubmitTitle] = useState('');
+  const [submitContent, setSubmitContent] = useState('');
   const [selectedScene, setSelectedScene] = useState<Scene | null>(null);
   const [showTutorial, setShowTutorial] = useState(false);
   const [tutorialStep, setTutorialStep] = useState<number | null>(null);
@@ -790,6 +792,7 @@ export default function App() {
 
   const [showGachaModal, setShowGachaModal] = useState(false);
   const [showSupportLinkModal, setShowSupportLinkModal] = useState(false);
+  const [showGeneralSashiireModal, setShowGeneralSashiireModal] = useState(false);
   const [supportLinkInput, setSupportLinkInput] = useState('');
   const [supportLinkLoading, setSupportLinkLoading] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
@@ -922,8 +925,14 @@ export default function App() {
     if (tutorialStep === 2 && showSubmit) {
       setTutorialStep(3);
     }
+    if (tutorialStep === 3 && !showSubmit) {
+      setTutorialStep(2);
+    }
     if (tutorialStep === 4 && showGachaModal) {
       setTutorialStep(5);
+    }
+    if (tutorialStep === 5 && !showGachaModal) {
+      setTutorialStep(4);
     }
     if (tutorialStep === 6 && view === 'profile' && viewedProfileId === user?.uid) {
       setTutorialStep(7);
@@ -946,7 +955,15 @@ export default function App() {
     let selector = '';
     if (tutorialStep === 1) selector = '.btn-upvote-action';
     else if (tutorialStep === 2) selector = '#btn-inline-post';
-    else if (tutorialStep === 3) selector = '#btn-submit-post';
+    else if (tutorialStep === 3) {
+      if (!submitTitle.trim()) {
+        selector = '#tour-input-title';
+      } else if (!submitContent.trim()) {
+        selector = '#tour-input-content';
+      } else {
+        selector = '#btn-submit-post';
+      }
+    }
     else if (tutorialStep === 4) selector = '#btn-desktop-gacha, #btn-mobile-gacha';
     else if (tutorialStep === 5) selector = '#btn-draw-gacha';
     else if (tutorialStep === 6) selector = '#btn-desktop-profile, #btn-mobile-profile';
@@ -989,7 +1006,7 @@ export default function App() {
       window.removeEventListener('scroll', updateRect);
       clearInterval(timer);
     };
-  }, [tutorialStep, showSubmit, showGachaModal, view, viewedProfileId]);
+  }, [tutorialStep, showSubmit, showGachaModal, view, viewedProfileId, submitTitle, submitContent]);
 
   const userGachaState = useMemo(() => {
     if (!user) return null;
@@ -2780,20 +2797,27 @@ export default function App() {
           {user ? (
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-1 mr-2 bg-orange-50 rounded-full px-2 py-1">
-                <button onClick={() => setShowAnnouncementHistory(true)} className="p-1.5 hover:bg-orange-100 rounded-full transition-colors relative">
+                <button onClick={() => setShowAnnouncementHistory(true)} className="p-1.5 hover:bg-orange-100 rounded-full transition-colors relative" title={t("お知らせ", "Announcements")}>
                   <Volume2 className="w-4 h-4 text-orange-600" />
                 </button>
+                <button 
+                  onClick={() => setShowGeneralSashiireModal(true)} 
+                  className="p-1.5 hover:bg-orange-100 rounded-full transition-colors relative"
+                  title={t("差し入れ（おやつ応援）", "Send / Setup Tipping")}
+                >
+                  <Gift className="w-4 h-4 text-orange-655" />
+                </button>
                 {!user?.isAnonymous && (
-                  <button onClick={() => setShowChatList(true)} className="p-1.5 hover:bg-orange-100 rounded-full transition-colors relative">
+                  <button onClick={() => setShowChatList(true)} className="p-1.5 hover:bg-orange-100 rounded-full transition-colors relative" title={t("チャット", "Chats")}>
                     <MessageSquare className="w-4 h-4 text-orange-600" />
                   </button>
                 )}
-                <button onClick={() => setShowMessages(true)} className="relative p-1.5 hover:bg-orange-100 rounded-full transition-colors">
+                <button onClick={() => setShowMessages(true)} className="relative p-1.5 hover:bg-orange-100 rounded-full transition-colors" title={t("通知", "Notifications")}>
                   <Bell className="w-4 h-4 text-orange-600" />
                   {unreadCount > 0 && <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full border-2 border-white" />}
                 </button>
                 {isAdmin && (
-                  <button onClick={() => setShowAdminPanel(true)} className="p-1.5 hover:bg-orange-100 rounded-full transition-colors">
+                  <button onClick={() => setShowAdminPanel(true)} className="p-1.5 hover:bg-orange-100 rounded-full transition-colors" title={t("管理者", "Admin")}>
                     <Shield className="w-4 h-4 text-orange-600" />
                   </button>
                 )}
@@ -2961,6 +2985,7 @@ export default function App() {
             {/* Action Bar */}
             <div className="flex justify-center mb-8">
               <button 
+                id="btn-inline-post"
                 onClick={() => user ? setShowSubmit(true) : handleLogin()}
                 className="group flex items-center gap-2 bg-orange-900 text-white px-6 py-3 rounded-2xl hover:bg-orange-800 transition-all shadow-lg shadow-orange-900/10 active:scale-95 animate-pulse-subtle"
               >
@@ -3307,6 +3332,26 @@ export default function App() {
                       </button>
                     )}
 
+                    {/* 🎁 差し入れ（おやつ応援） */}
+                    <button 
+                      onClick={() => { 
+                        setShowGeneralSashiireModal(true); 
+                        setShowMobileMenu(false); 
+                      }}
+                      className="w-full flex items-center justify-between p-3 rounded-2xl bg-amber-500/10 hover:bg-amber-500/15 border border-amber-200/50 text-left transition text-orange-955 group cursor-pointer"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-gradient-to-br from-orange-400 to-rose-400 rounded-xl text-white group-hover:scale-105 transition-all">
+                          🎁
+                        </div>
+                        <div>
+                          <span className="text-xs font-black block text-orange-950">{t("差し入れ（おやつ応援）", "Snack Gift (Support)")}</span>
+                          <span className="text-[10px] text-orange-700/80 font-bold">{t("PayPayなどで差し入れを送る・設定する", "Send or set up tips via PayPay/etc.")}</span>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-orange-600 group-hover:translate-x-0.5 transition-transform" />
+                    </button>
+
                     {/* おやつ応援/支援の設定 */}
                     {!user?.isAnonymous && (
                       <button 
@@ -3321,8 +3366,8 @@ export default function App() {
                             <Sparkles className="w-4 h-4" />
                           </div>
                           <div>
-                            <span className="text-xs font-black block text-rose-950">{t("おやつ応援（支援）設定", "Setup Snack Tips")}</span>
-                            <span className="text-[10px] text-rose-600 font-semibold">{t("投げ銭やほしい物リストURLを登録", "Configure tip or donation links")}</span>
+                            <span className="text-xs font-black block text-rose-955">{t("差し入れ・支援リンク設定", "Setup Tip Link")}</span>
+                            <span className="text-[10px] text-rose-600 font-semibold">{t("PayPayやKyashの受け取りURLを設定", "Register PayPay / Kyash URL for receiving tips")}</span>
                           </div>
                         </div>
                         <ChevronRight className="w-4 h-4 text-rose-400 group-hover:translate-x-0.5 transition-transform" />
@@ -3562,14 +3607,24 @@ export default function App() {
       <AnimatePresence>
         {showSubmit && (
           <SubmitModal 
-            onClose={() => setShowSubmit(false)} 
+            onClose={() => {
+              setShowSubmit(false);
+              setSubmitTitle('');
+              setSubmitContent('');
+            }} 
             user={user}
             setAiLoading={setAiLoading}
             aiLoading={aiLoading}
+            onTitleContentChange={(title, content) => {
+              setSubmitTitle(title);
+              setSubmitContent(content);
+            }}
             onPostSuccess={() => {
               if (tutorialStep === 3) {
                 setTutorialStep(4);
               }
+              setSubmitTitle('');
+              setSubmitContent('');
             }}
           />
         )}
@@ -3751,19 +3806,19 @@ export default function App() {
                     <span>{t("登録できるURLの例:", "Examples of Tip Links:")}</span>
                   </div>
                   <ul className="list-disc pl-4 space-y-1">
+                    <li>PayPay（マイパターンの送金・受取URL / QRリンク）</li>
                     <li>Kyashの送金リンク (kyash.me/...)</li>
                     <li>Amazon ほしい物リスト</li>
-                    <li>Buy Me a Coffee / Ko-fi</li>
-                    <li>ストライプ/PayPal送金・OFUSE等</li>
+                    <li>Buy Me a Coffee / Ko-fi / OFUSE等</li>
                   </ul>
-                  <p className="text-[10px] text-rose-500 font-bold mt-1">※個人情報の公開範囲には十分ご注意ください。</p>
+                  <p className="text-[10px] text-rose-500 font-bold mt-1">※PayPayの個人間送金リンクもそのまま利用可能です！個人情報の公開範囲には十分ご注意ください。</p>
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-bold text-orange-500 mb-1.5 uppercase tracking-wider">{t("支援URL / 送金用リンク", "Tipping Link URL")}</label>
+                  <label className="block text-[10px] font-bold text-orange-500 mb-1.5 uppercase tracking-wider">{t("支援URL / 送金用リンク (PayPay/Kyash等)", "Tipping Link URL (PayPay/Kyash/etc)")}</label>
                   <input
                     type="url"
-                    placeholder="https://kyash.me/share/..."
+                    placeholder="https://paypay.ne.jp/qr/... や https://kyash.me/share/..."
                     value={supportLinkInput}
                     onChange={(e) => setSupportLinkInput(e.target.value)}
                     className="w-full text-xs px-3.5 py-2.5 bg-orange-50/20 border border-orange-200/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-300 font-mono transition"
@@ -3784,6 +3839,205 @@ export default function App() {
                     className="flex-1 py-2.5 bg-gradient-to-r from-orange-400 to-rose-400 hover:from-orange-500 hover:to-rose-500 text-white font-black text-xs rounded-xl shadow-md cursor-pointer hover:shadow-orange-100/50 transition-all border-0 disabled:opacity-50"
                   >
                     {supportLinkLoading ? t("保存中...", "Saving...") : t("設定を保存する", "Save TIP settings")}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* 🎁 central Sashiire (Tip/Gift) Plaza Modal */}
+      <AnimatePresence>
+        {showGeneralSashiireModal && user && (
+          <div className="fixed inset-0 z-[1100] flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowGeneralSashiireModal(false)}
+              className="fixed inset-0 bg-orange-950/45 backdrop-blur-sm"
+            />
+
+            {/* Modal Body */}
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              transition={{ type: "spring", duration: 0.25 }}
+              className="relative w-full max-w-md bg-white rounded-3xl border border-orange-100 shadow-2xl p-6 z-[1101] overflow-hidden max-h-[85vh] flex flex-col"
+              id="general-sashiire-modal"
+            >
+              <div className="flex items-center justify-between mb-4 pb-3 border-b border-orange-50 shrink-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">🎁</span>
+                  <h3 className="font-black text-orange-950 text-base">{t("差し入れ（おやつ応援）広場", "Snack Gift & Tip Hub")}</h3>
+                </div>
+                <button
+                  onClick={() => setShowGeneralSashiireModal(false)}
+                  className="p-1 text-orange-700 hover:bg-orange-50 rounded-full transition cursor-pointer border-0 bg-transparent"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="space-y-4 overflow-y-auto pr-1 flex-1">
+                {/* 1. Target Tipping (Sends to currently viewed profile or selected scene author) */}
+                {(() => {
+                  let targetUid: string | null = null;
+                  let targetName = "";
+                  let targetLink = "";
+                  let contextLabel = "";
+
+                  // Priority A: Profile view
+                  if (view === 'profile' && viewedProfileId && viewedProfileId !== user.uid) {
+                    const p = profiles[viewedProfileId];
+                    if (p) {
+                      targetUid = viewedProfileId;
+                      targetName = p.displayName || "地味っちユーザー";
+                      targetLink = p.supportLink || "";
+                      contextLabel = t("プロフィール閲覧中のユーザー", "User whose profile you are viewing");
+                    }
+                  }
+                  // Priority B: Selected Scene author
+                  else if (selectedScene && selectedScene.authorId && selectedScene.authorId !== user.uid) {
+                    targetUid = selectedScene.authorId;
+                    targetName = selectedScene.authorName || "地味っちユーザー";
+                    const p = profiles[selectedScene.authorId];
+                    targetLink = p?.supportLink || selectedScene.supportLink || "";
+                    contextLabel = t("閲覧中の地味話の投稿主", "Author of the scene you are reading");
+                  }
+
+                  if (targetUid) {
+                    return (
+                      <div className="bg-amber-50/70 border border-amber-200/50 rounded-2xl p-4 space-y-3">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full font-black text-[10px]">
+                            {contextLabel}
+                          </span>
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-black text-orange-950">
+                            {targetName} さんにおやつを届ける
+                          </h4>
+                          <p className="text-[10px] text-orange-700 font-bold mt-1 leading-normal">
+                            「あるある！」「共感した！」の感謝を込めて、おいしいお菓子やコーヒー代の気持ち（送金やギフト）を直接届けましょう。
+                          </p>
+                        </div>
+
+                        {targetLink ? (
+                          <button
+                            onClick={async () => {
+                              try {
+                                // Increment Counter in database
+                                const profileRef = doc(db, 'profiles', targetUid!);
+                                await updateDoc(profileRef, {
+                                  sashiireCount: increment(1)
+                                });
+                                
+                                // Send Notification
+                                const senderName = userProfile?.displayName || user.displayName || '誰か';
+                                await addDoc(collection(db, 'admin_messages'), {
+                                  recipientId: targetUid!,
+                                  senderId: user.uid,
+                                  content: `☕️ ${senderName}さんから「差し入れ（おやつ応援）」が届きました！温かい応援ありがとうございます！`,
+                                  createdAt: serverTimestamp(),
+                                  read: false,
+                                  type: 'sashiire'
+                                });
+
+                                alert(t('差し入れ窓口へジャンプします！美味しいおやつを届けて盛り上げましょう！🎁☕️', 'Launching support URL! Send them yummy snacks and power up their creation!🎁☕️'));
+                                window.open(targetLink, '_blank', 'noopener,noreferrer');
+                              } catch (e) {
+                                console.error(e);
+                                window.open(targetLink, '_blank', 'noopener,noreferrer');
+                              }
+                            }}
+                            className="w-full py-2.5 bg-gradient-to-r from-orange-400 to-amber-500 hover:from-orange-500 hover:to-amber-600 text-white font-black text-xs rounded-xl shadow-md transition-all active:scale-[0.98] flex items-center justify-center gap-1 border-0 cursor-pointer"
+                          >
+                            <span>🎁 {targetName} さんに差し入れを送る</span>
+                            <ChevronRight className="w-3.5 h-3.5" />
+                          </button>
+                        ) : (
+                          <div className="p-3 bg-stone-50 border border-stone-200/50 rounded-xl">
+                            <p className="text-[10px] text-stone-500 font-bold leading-normal">
+                              ⚠️ {targetName} さんはまだおやつの受け取り用（PayPay・Kyash等）の支援URLを登録していません。
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="bg-orange-50/40 border border-orange-100/50 rounded-2xl p-4 text-center space-y-2">
+                      <span className="text-2xl block animate-bounce">☕️</span>
+                      <p className="text-xs text-orange-955 font-black">
+                        みんなにおやつを届けよう
+                      </p>
+                      <p className="text-[10px] text-orange-700/90 font-bold leading-relaxed max-w-xs mx-auto">
+                        地味なお話でおもしろい共感を生み出してくれた人に、美味しいコーヒーやお菓子を「差し入れ（投げ銭・電子マネー送金）」して応援できます！<br/>
+                        お話の詳細画面や気になる人のプロフィールから差し入れを送ることができます。
+                      </p>
+                    </div>
+                  );
+                })()}
+
+                {/* 2. Admin/Management support */}
+                <div className="bg-orange-50/70 border border-orange-100/60 rounded-2xl p-4 space-y-3">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs bg-orange-100 bg-orange-200 text-orange-900 px-2 py-0.5 rounded-full font-black text-[10px]">
+                      地味っち運営
+                    </span>
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-black text-orange-950 leading-snug">
+                      地味っちの運営（サーバー代・管理チーム）を応援する
+                    </h4>
+                    <p className="text-[10px] text-orange-700 font-bold mt-1 leading-normal">
+                      「このままりした居場所を作ってくれてありがとう！」という温かい気持ちを、運営に届けることができます。（仮想コーヒーや、実際の応援窓口を利用可能です）
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => {
+                        alert(t('☕️ 運営チームに温かいコーヒー（仮想）を差し入れしました！「めちゃめちゃうまい！開発の元気が 100 倍にアップしました！ありがとう！✨」', 'You gave virtual coffee to the Admin team! "Tastes amazing! Our development motivation has boosted 100x! Thank you! " ✨'));
+                      }}
+                      className="py-2.5 bg-amber-50 hover:bg-amber-100 text-amber-900 font-black text-[10.5px] rounded-xl transition border border-amber-200/50 cursor-pointer flex items-center justify-center gap-1"
+                    >
+                      <span>☕️ コーヒーを贈る (仮想)</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        alert(t('運営の差し入れ受付（のんびり応援用ページ）へジャンプします！ありがとうございます！🎁', 'Heading to App developers support page! Thank you for backing us!🎁'));
+                        window.open('https://ofuse.me', '_blank', 'noopener,noreferrer');
+                      }}
+                      className="py-2.5 bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 text-white font-black text-[10.5px] rounded-xl transition-all shadow-md select-none border-0 cursor-pointer"
+                    >
+                      <span>🎁 開発者に差し入れする</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* 3. Setup your own support link */}
+                <div className="bg-stone-50 border border-stone-200/50 rounded-2xl p-4 space-y-2">
+                  <h4 className="text-xs font-black text-stone-800 flex items-center gap-1">
+                    <span>⚙️</span>
+                    <span>あなた自身のおやつ（PayPay送金等）受け取り設定</span>
+                  </h4>
+                  <p className="text-[10px] text-stone-500 leading-relaxed font-bold">
+                    あなたもPayPayの送金URL、Kyashの送金用リンク、またはOFUSEやAmazonほしい物リストを登録して、他のユーザーからおやつ（直接の投げ銭応援）を受け取ってみませんか？
+                  </p>
+                  <button
+                    onClick={() => {
+                      setShowGeneralSashiireModal(false);
+                      setShowSupportLinkModal(true);
+                    }}
+                    className="w-full mt-1.5 py-2 bg-stone-200 hover:bg-stone-300 text-stone-800 font-bold text-xs rounded-xl transition cursor-pointer border-0"
+                  >
+                    おやつ（領収・送金リンク）を設定・変更する
                   </button>
                 </div>
               </div>
@@ -3843,7 +4097,7 @@ export default function App() {
               initial={{ opacity: 0, y: 50, scale: 0.9 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 30, scale: 0.9 }}
-              className="fixed bottom-6 right-6 z-[999] bg-white border-2 border-orange-200 shadow-2xl rounded-3xl p-5 max-w-sm flex items-center gap-4 cursor-pointer select-none border-orange-200"
+              className="fixed bottom-6 right-6 z-[999] bg-white border-2 border-orange-200 shadow-2xl rounded-3xl p-5 max-w-sm flex items-center gap-4 cursor-pointer select-none"
               onClick={() => setActiveCampaignRewards(prev => prev.slice(1))}
             >
               <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center shrink-0">
@@ -3852,7 +4106,7 @@ export default function App() {
               <div>
                 <h5 className="text-xs font-black text-orange-950 uppercase tracking-widest">キャンペーン配布プレゼント！</h5>
                 <div className="mt-1 leading-normal">
-                  <span className="text-[9px] bg-orange-110 text-orange-600 px-1.5 py-0.5 rounded-full font-bold">{currentReward.title}</span>
+                  <span className="text-[9px] bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded-full font-bold">{currentReward.title}</span>
                   <p className="text-[10px] text-orange-900 leading-relaxed font-black mt-1">{currentReward.msg}</p>
                 </div>
                 <span className="text-[8px] text-orange-300 block mt-2 text-right">
@@ -3959,7 +4213,11 @@ export default function App() {
                 <p className="text-[11px] font-semibold text-slate-800 leading-snug mt-0.5 select-none">
                   {tutorialStep === 1 && t("「共感（👍）」ボタンをタップして、誰かの地味な瞬間に共感してみましょう！", "Tap the Sympathy (👍) button to express relative resonance!")}
                   {tutorialStep === 2 && t("「シーンを投稿する（➕）」ボタンをタップして投稿フォームを開いてください。", "Tap the 'Post a Scene (➕)' button to launch the posting modal.")}
-                  {tutorialStep === 3 && t("フォームに些細な日常と予測共感度を入力して、「投稿する」を押しましょう！", "Fill in your plain moment and sync % expected, then click submit!")}
+                  {tutorialStep === 3 && (
+                    !submitTitle.trim() ? t("まずは「タイトル」をひと言で入力してみましょう！（例: コンビニの袋の音）", "Let's start by entering a short Title! (e.g. Convenience store bag crinkling)") :
+                    !submitContent.trim() ? t("次に、その「詳しい内容」を書いてみましょう！", "Next, please type in the detailed context or plain moment!") :
+                    t("完璧です！最後に「投稿する」ボタンをタップして投稿しましょう！", "Perfect! Now tap the 'Submit / Post' button to publish your plain moment!")
+                  )}
                   {tutorialStep === 4 && t("ヘッダーかメニューの「コイン残高（🪙）」または「地味ガチャ」をタップします。", "Find and tap 'Coins (🪙)' or 'Jimi Gacha' in the header/menu.")}
                   {tutorialStep === 5 && t("ガチャ画面で「ガチャを引く / 1回引く（100GC）」をタップして回してみましょう！", "Inside Gacha, click 'Draw' / 'Single roll' (100 GC) to win titles or badges.")}
                   {tutorialStep === 6 && t("装備しましょう！「自分のアイコン（👤）」またはメニューの「マイページ」をタップします。", "Time to set it up. Open 'My Page' from the avatar or sidebar menu.")}
@@ -4138,9 +4396,12 @@ const SceneCard: React.FC<{
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       whileHover={{ y: -4 }}
-      className="bg-white border-2 border-orange-100 p-6 rounded-3xl shadow-sm hover:shadow-xl hover:shadow-orange-900/5 transition-all cursor-pointer group"
+      className="relative bg-white border-2 border-orange-100 p-6 rounded-3xl shadow-sm hover:shadow-xl hover:shadow-orange-900/5 transition-all cursor-pointer group overflow-hidden"
       onClick={onClick}
     >
+      {/* 3D Geological Fossil Overlay covering the entire Post Card Box */}
+      <FossilOverlay percentage={fossilInfo.percentage} sceneId={scene.id} />
+
       <div className="flex items-center gap-3 mb-4">
         <button 
           onClick={(e) => {
@@ -4412,10 +4673,28 @@ const SceneCard: React.FC<{
   );
 }
 
-function SubmitModal({ onClose, user, setAiLoading, aiLoading, onPostSuccess }: { onClose: () => void, user: User | null, setAiLoading: (v: boolean) => void, aiLoading: boolean, onPostSuccess?: () => void }) {
+function SubmitModal({ 
+  onClose, 
+  user, 
+  setAiLoading, 
+  aiLoading, 
+  onPostSuccess,
+  onTitleContentChange
+}: { 
+  onClose: () => void, 
+  user: User | null, 
+  setAiLoading: (v: boolean) => void, 
+  aiLoading: boolean, 
+  onPostSuccess?: () => void,
+  onTitleContentChange?: (title: string, content: string) => void
+}) {
   const { language, t } = useLanguage();
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
+
+  useEffect(() => {
+    onTitleContentChange?.(title, content);
+  }, [title, content, onTitleContentChange]);
   const [category, setCategory] = useState('Everyday');
   const [imageUrl, setImageUrl] = useState('');
   const [uploading, setUploading] = useState(false);
@@ -4601,6 +4880,7 @@ function SubmitModal({ onClose, user, setAiLoading, aiLoading, onPostSuccess }: 
             <div>
               <label className="block text-[10px] font-bold text-orange-300 uppercase tracking-widest mb-2">タイトル (ひと言で)</label>
               <input 
+                id="tour-input-title"
                 type="text" 
                 value={title} 
                 onChange={e => setTitle(e.target.value)}
@@ -4613,6 +4893,7 @@ function SubmitModal({ onClose, user, setAiLoading, aiLoading, onPostSuccess }: 
             <div>
               <label className="block text-[10px] font-bold text-orange-300 uppercase tracking-widest mb-2">シーンの詳しい内容</label>
               <textarea 
+                id="tour-input-content"
                 value={content} 
                 onChange={e => setContent(e.target.value)}
                 placeholder="どんな時に「あ、わかる」と思いますか？"
@@ -5109,7 +5390,11 @@ function DetailModal({
 
         <div className="flex-1 overflow-y-auto p-6 sm:p-10">
           <div className="mb-10">
-            <div className="flex items-center gap-3 mb-6">
+            <div className="relative p-6 sm:p-8 bg-white border-2 border-orange-100/40 shadow-sm rounded-[2.5rem] overflow-hidden mb-6">
+              {/* 3D Geological Fossil Overlay covering the entire Detailed Post box */}
+              <FossilOverlay percentage={fossilInfo.percentage} sceneId={scene.id} />
+
+              <div className="flex items-center gap-3 mb-6">
               <div className="flex items-center gap-3">
                 <img src={scene.isAnonymousPost ? 'https://api.dicebear.com/7.x/bottts/svg?seed=anonymous' : (authorProfile?.photoURL || scene.authorPhoto)} alt="" className="w-8 h-8 rounded-full border border-orange-100" />
                 <div className="text-left">
@@ -5224,9 +5509,10 @@ function DetailModal({
             <div className="text-orange-850 leading-relaxed text-lg italic whitespace-pre-wrap py-2 border-l-4 border-orange-200/50 pl-4 bg-orange-50/15 rounded-r-2xl">
               <FossilizedContent text={liveScene.content} percentage={fossilInfo.percentage} sceneId={scene.id} isTitle={false} />
             </div>
+          </div>
 
-            {/* Interactive incremental stone-chipping station */}
-            <FossilChipStation scene={liveScene} currentUserProfile={currentUserProfile} onChipped={() => {}} />
+          {/* Interactive incremental stone-chipping station */}
+          <FossilChipStation scene={liveScene} currentUserProfile={currentUserProfile} onChipped={() => {}} />
 
             {/* Sent Stickers display inside DetailModal for the post itself */}
             {liveScene.stickers && Object.keys(liveScene.stickers).length > 0 && (
@@ -6135,20 +6421,20 @@ function ProfileView({
                 <div className="bg-gradient-to-br from-amber-50 to-orange-50/60 p-6 rounded-[32px] border border-orange-100/60 flex flex-col justify-between">
                   <div>
                     <h4 className="text-xs font-black text-orange-900 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                      <span>☕️ {t('おやつ応援（Kyash等の投げ銭リンク）', 'Setup Snack Gifts')}</span>
+                      <span>☕️ {t('おやつ応援（PayPayやKyash等の投げ銭リンク）', 'Setup Snack Gifts (PayPay, Kyash, etc.)')}</span>
                     </h4>
                     <p className="text-[11px] font-bold text-orange-750/90 leading-relaxed mb-4">
-                      {t('銀行口座が作れなくても大丈夫！Kyash（コンビニ等で本人確認すれば送金リンクで受取・交換がすぐ可能）、OFUSE、gifteeなどの受け取りURLを設定できます。設定するとプロフに可愛い差し入れボタンが付き、サポーターからおやつ（受取金・電子マネー）を直接受け取れるようになります。', 'No bank account needed! Provide your Kyash remittance ID, OFUSE, or Amazon Gift list links. We add a cozy "Snack Gift" button so visitors can send tips/remittance directly to you.')}
+                      {t('銀行口座が作れなくても大丈夫！PayPayの送金受け取りURLや、Kyash（コンビニ等で本人確認すれば送金リンクで受取・交換がすぐ可能）、OFUSE、gifteeなどの受け取りURLを設定できます。設定するとプロフに可愛い差し入れボタンが付き、サポーターからおやつ（受取金・電子マネー）を直接受け取れるようになります。', 'No bank account needed! Provide your PayPay receiving link, Kyash remittance ID, OFUSE, or Amazon Gift list links. We add a cozy "Snack Gift" button so visitors can send tips/remittance directly to you.')}
                     </p>
                   </div>
 
                   <div>
-                    <span className="text-[9px] font-black text-orange-400 block mb-1">{t('設定する決済・送金リンク', 'Tip / Snack link URL')}</span>
+                    <span className="text-[9px] font-black text-orange-400 block mb-1">{t('設定する決済・送金リンク(PayPay/Kyash等)', 'Tip / Snack link URL')}</span>
                     {supportLinkEditing ? (
                       <div className="space-y-1.5">
                         <input 
                           type="url" 
-                          placeholder="https://kyash.me/shares/... または OFUSEのURL"
+                          placeholder="https://paypay.ne.jp/qr/... または https://kyash.me/share/..."
                           value={supportLinkInput}
                           onChange={e => setSupportLinkInput(e.target.value)}
                           className="bg-white border border-orange-200 rounded-xl px-2.5 py-1.5 text-[9px] font-mono text-orange-950 w-full outline-none"
