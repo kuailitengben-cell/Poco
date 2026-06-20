@@ -336,6 +336,15 @@ export function JseView({ user, profile, onBack, onGachaStateChange, allScenes =
   const [activeEventId, setActiveEventId] = useState<string>('none');
   const [selectedStockId, setSelectedStockId] = useState<string>('furo_mendoi');
   const [gachaCoins, setGachaCoins] = useState(0);
+  
+  // --- GC SAVINGS STATE (GC 価値爆上げ特別優待利回り金庫) ---
+  const [gcSavings, setGcSavings] = useState<number>(() => {
+    const uidKey = user?.uid || 'guest';
+    const saved = localStorage.getItem(`jse_gc_savings_v1_${uidKey}`);
+    return saved ? parseInt(saved, 10) : 0;
+  });
+  const [savingActionAmount, setSavingActionAmount] = useState<number>(10);
+
   const [chartPeriod, setChartPeriod] = useState<'1D' | '1W' | '1M' | '3M' | 'ALL'>('1D');
   const [chartType, setChartType] = useState<'price' | 'volume' | 'posts'>('price');
   
@@ -920,9 +929,110 @@ export function JseView({ user, profile, onBack, onGachaStateChange, allScenes =
   }, [holdings, stockPrices, jCoins]);
 
   // --- ACTIONS ---
+  
+  // Calculate and apply savings interest periodically (Yield accrued on tick time gaps)
+  useEffect(() => {
+    if (!user) return;
+    const uidKey = user.uid;
+    
+    // Check and calculate accrued interest since last check
+    const lastCheckKey = `jse_gc_savings_last_v1_${uidKey}`;
+    const lastCheck = localStorage.getItem(lastCheckKey);
+    const now = Date.now();
+    
+    if (lastCheck && gcSavings > 0) {
+      const elapsedMs = now - parseInt(lastCheck, 10);
+      // Premium J-Savings Interest: 1.2% per day (Compounded daily, massive incentive to hold GC)
+      // 1 day = 86,400,000 ms
+      // yield rate per ms = 0.012 / 86,400,000
+      const accrued = gcSavings * (0.0125 * elapsedMs / 86400000); 
+      if (accrued > 0.0001) {
+        const preciseSavingsKey = `jse_gc_precise_savings_v1_${uidKey}`;
+        const savedPrecise = localStorage.getItem(preciseSavingsKey);
+        const preciseVal = savedPrecise ? parseFloat(savedPrecise) : gcSavings;
+        const newVal = preciseVal + accrued;
+        
+        localStorage.setItem(preciseSavingsKey, String(newVal));
+        const roundedNew = Math.floor(newVal);
+        if (roundedNew > gcSavings) {
+          setGcSavings(roundedNew);
+          localStorage.setItem(`jse_gc_savings_v1_${uidKey}`, String(roundedNew));
+          
+          triggerPopup(`金庫ボーナス: 預入れ中のGCにボーナス金利おやつが発生！ +${roundedNew - gcSavings} GC獲得!`, '📈');
+        }
+      }
+    }
+    localStorage.setItem(lastCheckKey, String(now));
+  }, [tick, gcSavings, user?.uid]);
+
+  // Saving deposit executing
+  const handleDepositSavings = (amount: number) => {
+    if (!user) {
+      alert('金庫機能の利用にはログインが必要です。');
+      return;
+    }
+    if (amount <= 0) return;
+    
+    const gState = getGachaState(user.uid);
+    if (gState.coins < amount) {
+      alert(`手持ちGCが不足しています。手元残高: ${gState.coins} GC`);
+      return;
+    }
+
+    // Deduct from regular hot wallet coins
+    gState.coins -= amount;
+    saveGachaState(user.uid, gState);
+
+    // Add to savings
+    const uidKey = user.uid;
+    const preciseSavingsKey = `jse_gc_precise_savings_v1_${uidKey}`;
+    const prevPrecise = parseFloat(localStorage.getItem(preciseSavingsKey) || '0') || gcSavings;
+    const newValPrecise = prevPrecise + amount;
+    
+    localStorage.setItem(preciseSavingsKey, String(newValPrecise));
+    const rounded = Math.floor(newValPrecise);
+    setGcSavings(rounded);
+    localStorage.setItem(`jse_gc_savings_v1_${uidKey}`, String(rounded));
+
+    updateGachaCoins();
+    onGachaStateChange();
+    triggerPopup(`金庫預入：J-金庫へ ${amount} GCを預け入れました。`, '🔐');
+  };
+
+  // Saving withdraw executing
+  const handleWithdrawSavings = (amount: number) => {
+    if (!user) return;
+    if (amount <= 0) return;
+    
+    const preciseKey = `jse_gc_precise_savings_v1_${user.uid}`;
+    const preciseVal = parseFloat(localStorage.getItem(preciseKey) || '0') || gcSavings;
+    
+    if (preciseVal < amount) {
+      alert(`金庫の預入れ高を超えています。預入れ高: ${gcSavings} GC`);
+      return;
+    }
+
+    const newValPrecise = preciseVal - amount;
+    localStorage.setItem(preciseKey, String(newValPrecise));
+    
+    const rounded = Math.floor(newValPrecise);
+    setGcSavings(rounded);
+    localStorage.setItem(`jse_gc_savings_v1_${user.uid}`, String(rounded));
+
+    // Refund manual GC
+    const gState = getGachaState(user.uid);
+    gState.coins += amount;
+    saveGachaState(user.uid, gState);
+
+    updateGachaCoins();
+    onGachaStateChange();
+    triggerPopup(`金庫引出：J-金庫から手財布へ ${amount} GC引き出しました。`, '🔓');
+  };
 
   // Exchange GC (Gacha Coins) to J-Coins or vice-versa
-  // 1 Gacha Coin = 10 J Coins
+  // 1 Gacha Coin = 10 J Coins (With large transaction bonus multipliers for GC!)
+  // 100 GC -> 1200 J-Coins (12x value, +20% bonus)
+  // 500 GC -> 7500 J-Coins (15x value, +50% HUGE surge!)
   const handleExchange = (direction: 'gc_to_j' | 'j_to_gc') => {
     if (!user) {
       alert('両替機能を利用するにはログインが必要です。');
@@ -935,15 +1045,31 @@ export function JseView({ user, profile, onBack, onGachaStateChange, allScenes =
         alert(`Gacha Coin (GC) が不足しています。現在の残高: ${gState.coins} GC`);
         return;
       }
+
+      // Calculate dynamic bonus rate
+      let rate = 10;
+      let bonusText = '';
+      if (exchangeAmount >= 500) {
+        rate = 15;
+        bonusText = ' (+50% 特盛大口ボーナス適用！)';
+      } else if (exchangeAmount >= 100) {
+        rate = 12;
+        bonusText = ' (+20% 大口ボーナス適用！)';
+      }
+
+      const receivedJ = exchangeAmount * rate;
+
       // Deduct GC
       gState.coins -= exchangeAmount;
       saveGachaState(user.uid, gState);
       
       // Earn J
-      setJCoins(prev => prev + (exchangeAmount * 10));
+      setJCoins(prev => prev + receivedJ);
       updateGachaCoins();
       onGachaStateChange();
-      triggerPopup(`両替完了: +${exchangeAmount * 10} J-Coinを獲得!`, '🪙');
+      triggerPopup(`両替完了: +${receivedJ.toLocaleString()} J-Coinを獲得!${bonusText}`, '🪙');
+      setConfetti(true);
+      setTimeout(() => setConfetti(false), 2000);
     } else {
       const requiredJ = exchangeAmount * 10;
       if (jCoins < requiredJ) {
@@ -1878,41 +2004,126 @@ export function JseView({ user, profile, onBack, onGachaStateChange, allScenes =
 
             </div>
 
-            {/* J-Coins 両替所 (Currency Exchange panel) */}
-            <div className="bg-amber-50/50 border border-amber-200/50 rounded-2xl p-4 space-y-3 shadow-xs">
-              <h4 className="text-xs font-black text-amber-950 flex items-center gap-1.5">
-                <ArrowRightLeft className="w-4 h-4 text-amber-600 animate-pulse-subtle" />
-                地味コイン自動両替機 (J ⇆ GC Exchange)
-              </h4>
-              <p className="text-[10px] text-amber-800/80 font-bold leading-relaxed">
-                地味っちガチャで使う貴重な GC コインを J-Coin に両替、またはJSEで増やしたJ-CoinをGCに戻してプレミアムガチャに挑戦が可能！
-                <span className="block text-amber-950 font-black mt-1">※ 両替レート：1 GC = 10 J コイン (等価値相互変換)</span>
-              </p>
+            {/* J-Coins 両替所 & GC特別金庫 (Currency Exchange & Savings panel) */}
+            <div className="space-y-4">
+              <div className="bg-gradient-to-br from-amber-50 to-orange-50/60 border border-orange-200/70 rounded-[32px] p-6 space-y-4 shadow-sm">
+                <h4 className="text-xs font-black text-orange-950 flex items-center gap-1.5">
+                  <ArrowRightLeft className="w-4 h-4 text-orange-600 animate-bounce-subtle" />
+                  GC (ガチャコイン) 価値爆上げ特別両替所
+                </h4>
+                <div className="text-[10.5px] text-orange-900 font-bold leading-relaxed space-y-2">
+                  <p>
+                    地味機密ガチャで獲得する貴重な <strong className="text-orange-950">GC (Gacha Coins)</strong> が、JSE市場を介して超強化！
+                    今やGCは単なるガチャコインではなく、両替枚数に応じて驚異のボーナスおやつ（J-Coins）に変換できる特権アセットです。
+                  </p>
+                  <div className="bg-white/75 border border-orange-100 rounded-2xl p-3 space-y-1 font-mono text-[9px] text-orange-950">
+                    <div className="flex justify-between border-b border-orange-50 pb-1">
+                      <span>🎟️ 通常両替 (10 GC以上)</span>
+                      <span>1 GC ＝ <strong>10 J-Coins</strong></span>
+                    </div>
+                    <div className="flex justify-between border-b border-orange-50 pb-1 text-emerald-800 font-black">
+                      <span>🔥 大口中盛り (100 GC以上)</span>
+                      <span>1 GC ＝ <strong>12 J-Coins (+20%増!)</strong></span>
+                    </div>
+                    <div className="flex justify-between font-black text-rose-850">
+                      <span>👑 特盛設立祝 (500 GC以上)</span>
+                      <span>1 GC ＝ <strong>15 J-Coins (+50%超特盛増!)</strong></span>
+                    </div>
+                  </div>
+                </div>
 
-              <div className="flex items-center gap-2 mt-2 bg-white p-2 rounded-xl border border-amber-200">
-                <input 
-                  type="number" 
-                  min="10"
-                  step="10"
-                  value={exchangeAmount} 
-                  onChange={e => setExchangeAmount(Math.max(10, parseInt(e.target.value, 10)))}
-                  className="bg-amber-50/30 text-xs font-black text-amber-950 outline-none w-20 px-2 py-1 rounded border border-amber-100"
-                />
-                <span className="text-[10px] font-extrabold text-amber-800 uppercase mr-1">GC 両替</span>
+                <div className="flex items-center gap-2 bg-white/90 p-2.5 rounded-2xl border border-orange-200 shadow-inner">
+                  <input 
+                    type="number" 
+                    min="10"
+                    step="10"
+                    value={exchangeAmount} 
+                    onChange={e => setExchangeAmount(Math.max(10, parseInt(e.target.value, 10)))}
+                    className="bg-orange-50/30 text-xs font-black text-orange-950 outline-none w-20 px-2.5 py-1.5 rounded-xl border border-orange-200"
+                  />
+                  <div>
+                    <span className="text-[9px] font-black text-orange-400 block -mb-0.5">両替数量入力</span>
+                    <span className="text-[10px] font-black text-orange-850 uppercase">GC Coin</span>
+                  </div>
 
-                <div className="flex gap-1.5 ml-auto">
-                  <button 
-                    onClick={() => handleExchange('gc_to_j')}
-                    className="bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-black px-3 py-2 rounded-xl transition cursor-pointer"
-                  >
-                    GC → J 
-                  </button>
-                  <button 
-                    onClick={() => handleExchange('j_to_gc')}
-                    className="bg-amber-900 hover:bg-amber-950 text-white text-[10px] font-black px-3 py-2 rounded-xl transition cursor-pointer"
-                  >
-                    J → GC
-                  </button>
+                  <div className="flex gap-1.5 ml-auto">
+                    <button 
+                      onClick={() => handleExchange('gc_to_j')}
+                      className="bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white text-[10px] font-black px-4 py-2.5 rounded-xl shadow-xs transition transform hover:-translate-y-0.5 active:translate-y-0 cursor-pointer animate-pulse-subtle"
+                    >
+                      大口GC → J
+                    </button>
+                    <button 
+                      onClick={() => handleExchange('j_to_gc')}
+                      className="bg-stone-850 hover:bg-stone-900 text-stone-200 text-[10px] font-black px-3 py-2.5 rounded-xl transition cursor-pointer"
+                      title="10J-Coinsを1GCに両替します（※手数料なし等倍）"
+                    >
+                      J → GC
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* J-金庫 (GC Savings vault) */}
+              <div className="bg-gradient-to-br from-indigo-50 to-purple-50/70 border border-indigo-200/50 rounded-[32px] p-6 space-y-4 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-black text-indigo-950 flex items-center gap-1.5">
+                    <span>🔐</span> JSE-金庫 (GC 高利回り定期預入システム)
+                  </h4>
+                  <span className="text-[9px] bg-red-50 text-red-700 border border-red-100 px-2 py-0.5 rounded-full font-black animate-pulse">
+                    日歩 1.25% (超高金利)
+                  </span>
+                </div>
+                
+                <p className="text-[10px] text-indigo-800 font-bold leading-relaxed">
+                  手元のGCを金庫にロックしておくだけで、地味に時間が過ぎるごとにおやつの気持ち利息が自動加算されます。
+                  <span className="block mt-1 text-indigo-900 font-black">※ 年利換算 456% 相当！いつでもペナルティなしで手財布に引き出し可能です。</span>
+                </p>
+
+                <div className="bg-white/90 rounded-2xl p-3 border border-indigo-100 flex items-center justify-between shadow-xs">
+                  <div>
+                    <span className="text-[9.5px] font-bold text-indigo-400 block">金庫の中身 (GC Savings)</span>
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-lg font-black text-indigo-950 font-mono">
+                        {gcSavings.toLocaleString()}
+                      </span>
+                      <span className="text-[9.5px] text-indigo-700 font-black">GC</span>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[9px] font-bold text-indigo-400 block">現在の手元財布残高</span>
+                    <span className="text-xs font-black text-indigo-950 font-mono">
+                      {gachaCoins} <span className="text-[9px] font-bold text-indigo-700">GC</span>
+                    </span>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center gap-1.5 bg-white/70 p-2 rounded-xl border border-indigo-100">
+                    <input 
+                      type="number" 
+                      min="5" 
+                      step="5"
+                      value={savingActionAmount}
+                      onChange={e => setSavingActionAmount(Math.max(1, parseInt(e.target.value, 10)))}
+                      className="bg-indigo-50/20 text-xs font-black text-indigo-950 outline-none w-14 p-1 rounded-lg border border-indigo-100"
+                    />
+                    <span className="text-[9px] font-extrabold text-indigo-700">GC アクション高</span>
+                    <div className="flex gap-1 ml-auto flex-1 justify-end">
+                      <button 
+                        onClick={() => handleDepositSavings(savingActionAmount)}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white text-[9.5px] font-black px-3 py-1.5 rounded-lg shadow-xs transition"
+                      >
+                        預入 📥
+                      </button>
+                      <button 
+                        onClick={() => handleWithdrawSavings(savingActionAmount)}
+                        className="bg-purple-800 hover:bg-purple-900 text-white text-[9.5px] font-black px-2.5 py-1.5 rounded-lg shadow-xs transition"
+                      >
+                        引出 🔓
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

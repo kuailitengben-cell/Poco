@@ -782,7 +782,7 @@ export default function App() {
   const [showAnnouncementHistory, setShowAnnouncementHistory] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
-  const [sortMode, setSortMode] = useState<'latest' | 'popular'>('latest');
+  const [sortMode, setSortMode] = useState<'latest' | 'jimi'>('latest');
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [userSearchQuery, setUserSearchQuery] = useState('');
@@ -1677,13 +1677,13 @@ export default function App() {
   // Fetch Scenes
   useEffect(() => {
     setDisplayLimit(25);
-    let q = query(collection(db, 'scenes'), orderBy(sortMode === 'latest' ? 'createdAt' : 'upvotes', 'desc'));
+    let q = query(collection(db, 'scenes'), orderBy(sortMode === 'latest' ? 'createdAt' : 'upvotes', sortMode === 'latest' ? 'desc' : 'asc'));
     
     // Firestore only supports one array-contains per query.
     // If we want search AND tags AND sorting, it gets complex.
     // We'll fetch all and filter client-side for keywords, but use tags for server-side.
     if (selectedTag) {
-      q = query(collection(db, 'scenes'), where('hashtags', 'array-contains', selectedTag), orderBy(sortMode === 'latest' ? 'createdAt' : 'upvotes', 'desc'));
+      q = query(collection(db, 'scenes'), where('hashtags', 'array-contains', selectedTag), orderBy(sortMode === 'latest' ? 'createdAt' : 'upvotes', sortMode === 'latest' ? 'desc' : 'asc'));
     }
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -2769,6 +2769,10 @@ export default function App() {
           setViewedProfileId(uid);
           handleViewChange('profile');
         }}
+        onOpenSashiire={(targetData) => {
+          setSashiireTargetData(targetData);
+          setShowGeneralSashiireModal(true);
+        }}
       />
     );
   }
@@ -3073,14 +3077,14 @@ export default function App() {
                   {t("最新", "Latest")}
                 </button>
                 <button 
-                  onClick={() => setSortMode('popular')}
+                  onClick={() => setSortMode('jimi')}
                   className={cn(
                     "flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all",
-                    sortMode === 'popular' ? "bg-white text-orange-900 shadow-sm" : "text-orange-300 hover:bg-white/50"
+                    sortMode === 'jimi' ? "bg-white text-orange-900 shadow-sm" : "text-orange-300 hover:bg-white/50"
                   )}
                 >
-                  <TrendingUp className="w-3.5 h-3.5" />
-                  {t("人気", "Popular")}
+                  <Smile className="w-3.5 h-3.5 text-rose-500" />
+                  {t("地味順", "Mundane / Plain")}
                 </button>
               </div>
 
@@ -3240,6 +3244,10 @@ export default function App() {
             gachaRevision={gachaRevision}
             onCopy={handleCopyPost}
             onToggleSticker={handleToggleSceneSticker}
+            onOpenSashiire={(targetData) => {
+              setSashiireTargetData(targetData);
+              setShowGeneralSashiireModal(true);
+            }}
           />
         )}
       </main>
@@ -3794,125 +3802,6 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Onboarding / Tutorial Modal */}
-      <AnimatePresence>
-        {showTutorial && (
-          <TutorialModal
-            isOpen={showTutorial}
-            onClose={() => setShowTutorial(false)}
-            onStartInteractive={() => {
-              setTutorialStep(1);
-            }}
-          />
-        )}
-      </AnimatePresence>
-
-      {/* Jimi Gacha Modal */}
-      <AnimatePresence>
-        {showGachaModal && user && (
-          <JimiGachaModal
-            userId={user.uid}
-            isAdmin={isAdmin}
-            onClose={() => {
-              setShowGachaModal(false);
-              setGachaRevision(prev => prev + 1);
-            }}
-            onItemUnlocked={() => {
-              if (tutorialStep === 5) {
-                setTutorialStep(6);
-              }
-            }}
-          />
-        )}
-      </AnimatePresence>
-
-      {/* Dynamic Support/Tip Link Setup Modal */}
-      <AnimatePresence>
-        {showSupportLinkModal && user && (
-          <div className="fixed inset-0 z-[1100] flex items-center justify-center p-4">
-            {/* Backdrop */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowSupportLinkModal(false)}
-              className="fixed inset-0 bg-orange-950/45 backdrop-blur-sm"
-            />
-            
-            {/* Modal Body */}
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              transition={{ type: "spring", duration: 0.25 }}
-              className="relative w-full max-w-md bg-white rounded-3xl border border-orange-100 shadow-2xl p-6 z-[1101] overflow-hidden"
-              id="support-link-modal"
-            >
-              <div className="flex items-center justify-between mb-4 pb-3 border-b border-orange-50">
-                <div className="flex items-center gap-2">
-                  <span className="text-xl">🎁</span>
-                  <h3 className="font-black text-orange-950 text-base">{t("おやつ応援（支援URL）設定", "Configure Snack Tip URL")}</h3>
-                </div>
-                <button
-                  onClick={() => setShowSupportLinkModal(false)}
-                  className="p-1 text-orange-700 hover:bg-orange-50 rounded-full transition cursor-pointer border-0 bg-transparent animate-fade-in"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <div className="space-y-4">
-                <p className="text-xs text-orange-800 leading-relaxed font-semibold">
-                  {t("地味っちでは、「ささやかな共感」を生み出してくれた投稿主（クリエイター）へ応援の気持ちを込めておやつ代やコーヒー代を差し入れ（投げ銭）することができます！☕️", "On Jimicchi, you can configure your custom support URL so users can send you snack or coffee tips for your posts!")}
-                </p>
-
-                <div className="bg-orange-50/50 border border-orange-100/40 rounded-2xl p-3.5 space-y-2 text-[11px] text-orange-900 leading-relaxed font-medium mb-3">
-                  <div className="font-bold text-orange-950 flex items-center gap-1">
-                    <span>💡</span>
-                    <span>{t("登録できるURLの例:", "Examples of Tip Links:")}</span>
-                  </div>
-                  <ul className="list-disc pl-4 space-y-1">
-                    <li>PayPay（マイパターンの送金・受取URL / QRリンク）</li>
-                    <li>Kyashの送金リンク (kyash.me/...)</li>
-                    <li>Amazon ほしい物リスト</li>
-                    <li>Buy Me a Coffee / Ko-fi / OFUSE等</li>
-                  </ul>
-                  <p className="text-[10px] text-rose-500 font-bold mt-1">※PayPayの個人間送金リンクもそのまま利用可能です！個人情報の公開範囲には十分ご注意ください。</p>
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold text-orange-500 mb-1.5 uppercase tracking-wider">{t("支援URL / 送金用リンク (PayPay/Kyash等)", "Tipping Link URL (PayPay/Kyash/etc)")}</label>
-                  <input
-                    type="url"
-                    placeholder="https://paypay.ne.jp/qr/... や https://kyash.me/share/..."
-                    value={supportLinkInput}
-                    onChange={(e) => setSupportLinkInput(e.target.value)}
-                    className="w-full text-xs px-3.5 py-2.5 bg-orange-50/20 border border-orange-200/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-300 font-mono transition"
-                  />
-                </div>
-
-                <div className="flex gap-2 pt-2">
-                  <button
-                    onClick={() => handleGlobalUpdateSupportLink('')}
-                    disabled={supportLinkLoading}
-                    className="flex-shrink-0 px-3 py-2.5 rounded-xl border border-orange-100 text-orange-400 text-xs font-bold bg-white hover:bg-red-50 hover:text-red-500 transition disabled:opacity-40 cursor-pointer"
-                  >
-                    {t("クリア", "Clear")}
-                  </button>
-                  <button
-                    onClick={() => handleGlobalUpdateSupportLink(supportLinkInput)}
-                    disabled={supportLinkLoading}
-                    className="flex-1 py-2.5 bg-gradient-to-r from-orange-400 to-rose-400 hover:from-orange-500 hover:to-rose-500 text-white font-black text-xs rounded-xl shadow-md cursor-pointer hover:shadow-orange-100/50 transition-all border-0 disabled:opacity-50"
-                  >
-                    {supportLinkLoading ? t("保存中...", "Saving...") : t("設定を保存する", "Save TIP settings")}
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
       {/* 🎁 central Sashiire (Tip/Gift) Plaza Modal */}
       <AnimatePresence>
         {showGeneralSashiireModal && user && (
@@ -3932,13 +3821,13 @@ export default function App() {
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
               transition={{ type: "spring", duration: 0.25 }}
-              className="relative w-full max-w-md bg-white rounded-3xl border border-orange-100 shadow-2xl p-6 z-[1101] overflow-hidden max-h-[85vh] flex flex-col"
+              className="relative w-full max-w-md bg-white rounded-3xl border border-orange-100 shadow-2xl p-6 z-[1101] overflow-hidden max-h-[85vh] flex flex-col font-sans"
               id="general-sashiire-modal"
             >
               <div className="flex items-center justify-between mb-4 pb-3 border-b border-orange-50 shrink-0">
                 <div className="flex items-center gap-2">
                   <span className="text-xl">🎁</span>
-                  <h3 className="font-black text-orange-950 text-base">{t("差し入れ（おやつ応援）広場", "Snack Gift & Tip Hub")}</h3>
+                  <h3 className="font-black text-orange-950 text-base">{t("差し入れ（おやつコイン）広場", "Snack Gift Plaza")}</h3>
                 </div>
                 <button
                   onClick={() => setShowGeneralSashiireModal(false)}
@@ -3949,83 +3838,111 @@ export default function App() {
               </div>
 
               <div className="space-y-4 overflow-y-auto pr-1 flex-1">
-                {/* 1. Target Tipping (Sends to currently viewed profile or selected scene author) */}
+                {/* User Profile Coin balance view */}
+                <div className="bg-orange-50 border border-orange-100 rounded-2xl p-3 flex justify-between items-center">
+                  <span className="text-[11px] font-bold text-orange-900">{t("あなたのお財布残高:", "Your wallet:")}</span>
+                  <strong className="text-sm font-black text-orange-955 font-mono">
+                    💰 {(userProfile?.jCoins || 0).toLocaleString()} J-Coin
+                  </strong>
+                </div>
+
+                {/* 1. Target Tipping (Sends J-Coin to currently viewed profile or selected scene author) */}
                 {sashiireTargetLoading ? (
                   <div className="flex flex-col items-center justify-center p-8 space-y-2 bg-amber-50/30 rounded-2xl border border-amber-100">
                     <Loader2 className="w-6 h-6 animate-spin text-orange-500" />
-                    <span className="text-[10px] text-orange-700/80 font-bold">{t("おやつ設定を取得中...", "Fetching support details...")}</span>
+                    <span className="text-[10px] text-orange-700/80 font-bold">{t("お届け先情報を取得中...", "Fetching details...")}</span>
                   </div>
                 ) : sashiireTargetData ? (
                   <div className="bg-amber-50/70 border border-amber-200/50 rounded-2xl p-4 space-y-3">
                     <div className="flex items-center gap-1.5">
                       <span className="text-xs bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full font-black text-[10px]">
-                        {sashiireTargetData.isSelf ? t("あなたの設定のテスト", "Testing Your Setup") : t("おやつお届け先", "Recipient")}
+                        {sashiireTargetData.isSelf ? t("差し入れテスト発信（自分）", "Testing Gifting (Self)") : t("おやつお届け先", "Recipient")}
                       </span>
                     </div>
                     <div>
                       <h4 className="text-sm font-black text-orange-950">
-                        {sashiireTargetData.displayName} さんにおやつを届ける
+                        {sashiireTargetData.displayName} さんにおやつを差し入れ
                       </h4>
                       <p className="text-[10px] text-orange-700 font-bold mt-1 leading-normal">
-                        「あるある！」「共感した！」の感謝を込めて、おいしいお菓子やコーヒー代の気持ち（送金やギフト）を直接届けましょう。
+                        日常の面白いあるある共感のお礼に、手持ちの J-Coin を支払って本当のおやつ（ジミ硬貨）としてプレゼントしましょう！
                       </p>
                     </div>
 
-                    {sashiireTargetData.supportLink ? (
-                      <button
-                        onClick={async () => {
-                          try {
-                            if (!sashiireTargetData.isSelf) {
-                              // Increment Counter in database
-                              const profileRef = doc(db, 'profiles', sashiireTargetData.uid);
-                              await updateDoc(profileRef, {
-                                sashiireCount: increment(1)
-                              });
-                              
-                              // Send Notification
-                              const senderName = userProfile?.displayName || user.displayName || '誰か';
-                              await addDoc(collection(db, 'admin_messages'), {
-                                recipientId: sashiireTargetData.uid,
-                                senderId: user.uid,
-                                content: `☕️ ${senderName}さんからあなたの地味話・プロフに「差し入れ（おやつ応援）」が届きました！温かい応援ありがとうございます！`,
-                                createdAt: serverTimestamp(),
-                                read: false,
-                                type: 'sashiire'
-                              });
-                            }
-
-                            // Detect if PayPay or not to show custom alert text
-                            const isPayPay = sashiireTargetData.supportLink.toLowerCase().includes('paypay') || sashiireTargetData.supportLink.includes('paypay.ne.jp');
-                            const appName = isPayPay ? 'PayPay' : '差し入れ受け取り窓口（Kyash/OFUSE等）';
-                            
-                            alert(t(`投稿主の ${appName} へジャンプします！美味しいおやつを届けて盛り上げましょう！🎁☕️`, `Launching creator's support page! Send them yummy snacks and power up their creation!🎁☕️`));
-                            window.open(sashiireTargetData.supportLink, '_blank', 'noopener,noreferrer');
-                          } catch (e) {
-                            console.error(e);
-                            window.open(sashiireTargetData.supportLink, '_blank', 'noopener,noreferrer');
-                          }
-                        }}
-                        className="w-full py-2.5 bg-gradient-to-r from-orange-400 to-amber-500 hover:from-orange-500 hover:to-amber-600 text-white font-black text-xs rounded-xl shadow-md transition-all active:scale-[0.98] flex items-center justify-center gap-1 border-0 cursor-pointer"
-                      >
-                        <span>🎁 {sashiireTargetData.displayName} さんに差し入れを送る</span>
-                        <ChevronRight className="w-3.5 h-3.5" />
-                      </button>
-                    ) : (
-                      <div className="p-3 bg-stone-50 border border-stone-200/50 rounded-xl space-y-2">
-                        <p className="text-[10px] text-stone-500 font-bold leading-normal">
-                          ⚠️ {sashiireTargetData.displayName} さんはまだおやつの受け取り用（PayPay・Kyash等）の支援URLを登録していません。
+                    {sashiireTargetData.isSelf ? (
+                      <div className="p-3 bg-stone-50 border border-stone-200/50 rounded-xl">
+                        <p className="text-[10.5px] text-stone-500 font-bold leading-normal">
+                          ⚠️ 自分自身におやつを贈ることはできません（こちらはあなた自身の設定用表示です）。
                         </p>
-                        {sashiireTargetData.isSelf && (
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          { id: 'cookie', name: '地味クッキー 🍪', cost: 100 },
+                          { id: 'tea', name: 'ほっこり緑茶 🍵', cost: 300 },
+                          { id: 'coffee', name: 'お昼のコーヒー ☕️', cost: 500 },
+                          { id: 'cake', name: '感謝のショートケーキ 🍰', cost: 1000 }
+                        ].map((gift) => (
                           <button
-                            onClick={() => {
-                              setShowGeneralSashiireModal(false);
-                              setShowSupportLinkModal(true);
+                            key={gift.id}
+                            onClick={async () => {
+                              const currentCoins = userProfile?.jCoins || 0;
+                              if (currentCoins < gift.cost) {
+                                alert(t(`J-Coinが不足しています！\nおやつを贈るには ${gift.cost} J-Coin必要ですが、お財布には ${currentCoins} J-Coinしかありません。ログイン、招待、またはJSE地味株市場で増やしてみましょう！`, `J-Coin shortage! Need ${gift.cost} J-Coin but you have ${currentCoins}.`));
+                                return;
+                              }
+
+                              const confirmSashiire = window.confirm(t(
+                                `${sashiireTargetData.displayName} さんに「${gift.name}」（${gift.cost} J-Coin）を本当に差し入れしますか？相手の財布に直接チャージされます。`,
+                                `Are you sure you want to send ${gift.name} (${gift.cost} J-Coin) to ${sashiireTargetData.displayName}?`
+                              ));
+                              if (!confirmSashiire) return;
+
+                              try {
+                                // 1. Decrement sender's J-Coins
+                                const senderRef = doc(db, 'profiles', user.uid);
+                                await updateDoc(senderRef, {
+                                  jCoins: increment(-gift.cost)
+                                });
+
+                                // 2. Increment receiver's J-Coins and sashiire count
+                                const receiverRef = doc(db, 'profiles', sashiireTargetData.uid);
+                                await updateDoc(receiverRef, {
+                                  jCoins: increment(gift.cost),
+                                  sashiireCount: increment(1)
+                                });
+
+                                // 3. Log notification inside admin_messages
+                                const senderName = userProfile?.displayName || user.displayName || '名無し';
+                                await addDoc(collection(db, 'admin_messages'), {
+                                  recipientId: sashiireTargetData.uid,
+                                  senderId: user.uid,
+                                  content: `🎁 ${senderName}さんからおやつ差し入れ【${gift.name} (${gift.cost} J-Coin)】が届きました！温かい応援ありがとうございます！`,
+                                  createdAt: serverTimestamp(),
+                                  read: false,
+                                  type: 'sashiire'
+                                });
+
+                                // 4. Update local state
+                                if (userProfile) {
+                                  setUserProfile({
+                                    ...userProfile,
+                                    jCoins: currentCoins - gift.cost
+                                  });
+                                }
+
+                                alert(t(`🎉 おやつを差し入れしました！\n${sashiireTargetData.displayName} さんに「${gift.name}」をお届けしました！`, `Success! Sent ${gift.name} to ${sashiireTargetData.displayName}!`));
+                                setShowGeneralSashiireModal(false);
+                              } catch (err: any) {
+                                console.error("Sashiire transaction failed:", err);
+                                alert(t("差し入れ中にエラーが発生しました。時間を置いて再度お試しください。", "Error sending snack."));
+                              }
                             }}
-                            className="text-[10px] underline text-orange-600 font-bold block bg-transparent border-0 cursor-pointer p-0"
+                            className="p-3 bg-white hover:bg-orange-50 border border-orange-100 rounded-xl text-left transition hover:border-orange-300 active:scale-[98.5%] cursor-pointer group flex flex-col justify-between"
                           >
-                            今すぐ PayPay や Kyash の投げ銭リンクを登録する
+                            <span className="text-[11.5px] font-black text-orange-955 group-hover:text-rose-600 transition">{gift.name}</span>
+                            <span className="text-[10px] text-orange-500 font-mono font-bold mt-1.5 block">💰 {gift.cost} J</span>
                           </button>
-                        )}
+                        ))}
                       </div>
                     )}
                   </div>
@@ -4033,71 +3950,13 @@ export default function App() {
                   <div className="bg-orange-50/40 border border-orange-100/50 rounded-2xl p-4 text-center space-y-2">
                     <span className="text-2xl block animate-bounce">☕️</span>
                     <p className="text-xs text-orange-955 font-black">
-                      みんなにおやつを届けよう
+                      お友達におやつを届けよう
                     </p>
                     <p className="text-[10px] text-orange-700/90 font-bold leading-relaxed max-w-xs mx-auto">
-                      地味なお話でおもしろい共感を生み出してくれた人に、美味しいコーヒーやお菓子を「差し入れ（投げ銭・電子マネー送金）」して応援できます！<br/>
-                      お話の詳細画面や気になる人のプロフィールから差し入れを送ることができます。
+                      地味なお話でおもしろい共感を生み出してくれた人に、J-Coinを使って美味しいコーヒーやお菓子を「差し入れ（ジミ投げ銭）」して直接応援できます！
                     </p>
                   </div>
                 )}
-
-                {/* 2. Admin/Management support */}
-                <div className="bg-orange-50/70 border border-orange-100/60 rounded-2xl p-4 space-y-3">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs bg-orange-100 bg-orange-200 text-orange-900 px-2 py-0.5 rounded-full font-black text-[10px]">
-                      地味っち運営
-                    </span>
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-black text-orange-950 leading-snug">
-                      地味っちの運営（サーバー代・管理チーム）を応援する
-                    </h4>
-                    <p className="text-[10px] text-orange-700 font-bold mt-1 leading-normal">
-                      「このままりした居場所を作ってくれてありがとう！」という温かい気持ちを、運営に届けることができます。（仮想コーヒーや、実際の応援窓口を利用可能です）
-                    </p>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      onClick={() => {
-                        alert(t('☕️ 運営チームに温かいコーヒー（仮想）を差し入れしました！「めちゃめちゃうまい！開発の元気が 100 倍にアップしました！ありがとう！✨」', 'You gave virtual coffee to the Admin team! "Tastes amazing! Our development motivation has boosted 100x! Thank you! " ✨'));
-                      }}
-                      className="py-2.5 bg-amber-50 hover:bg-amber-100 text-amber-900 font-black text-[10.5px] rounded-xl transition border border-amber-200/50 cursor-pointer flex items-center justify-center gap-1"
-                    >
-                      <span>☕️ コーヒーを贈る (仮想)</span>
-                    </button>
-                    <button
-                      onClick={() => {
-                        alert(t('運営の差し入れ受付（のんびり応援用ページ）へジャンプします！ありがとうございます！🎁', 'Heading to App developers support page! Thank you for backing us!🎁'));
-                        window.open('https://ofuse.me', '_blank', 'noopener,noreferrer');
-                      }}
-                      className="py-2.5 bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 text-white font-black text-[10.5px] rounded-xl transition-all shadow-md select-none border-0 cursor-pointer"
-                    >
-                      <span>🎁 開発者に差し入れする</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* 3. Setup your own support link */}
-                <div className="bg-stone-50 border border-stone-200/50 rounded-2xl p-4 space-y-2">
-                  <h4 className="text-xs font-black text-stone-800 flex items-center gap-1">
-                    <span>⚙️</span>
-                    <span>あなた自身のおやつ（PayPay送金等）受け取り設定</span>
-                  </h4>
-                  <p className="text-[10px] text-stone-500 leading-relaxed font-bold">
-                    あなたもPayPayの送金URL、Kyashの送金用リンク、またはOFUSEやAmazonほしい物リストを登録して、他のユーザーからおやつ（直接の投げ銭応援）を受け取ってみませんか？
-                  </p>
-                  <button
-                    onClick={() => {
-                      setShowGeneralSashiireModal(false);
-                      setShowSupportLinkModal(true);
-                    }}
-                    className="w-full mt-1.5 py-2 bg-stone-200 hover:bg-stone-300 text-stone-800 font-bold text-xs rounded-xl transition cursor-pointer border-0"
-                  >
-                    おやつ（領収・送金リンク）を設定・変更する
-                  </button>
-                </div>
               </div>
             </motion.div>
           </div>
@@ -4561,135 +4420,14 @@ const SceneCard: React.FC<{
         <FossilizedContent text={scene.content} percentage={fossilInfo.percentage} sceneId={scene.id} isTitle={false} />
       </p>
 
-      {/* Sent Stickers display */}
-      {scene.stickers && Object.keys(scene.stickers).length > 0 && (
-        <div className="flex flex-wrap gap-2 mb-4 bg-orange-50/35 p-2 rounded-2xl border border-orange-100/50">
-          {Object.entries(scene.stickers).map(([stickerId, uids]) => {
-            const sticker = STICKERS.find(s => s.id === stickerId);
-            if (!sticker) return null;
-            const stickerName = language === 'en' ? sticker.nameEn : sticker.name;
-            const uidsList = Array.isArray(uids) ? uids : [];
-            const hasUserReacted = auth.currentUser ? uidsList.includes(auth.currentUser.uid) : false;
-            return (
-              <button
-                key={stickerId}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onToggleSticker?.(scene.id, stickerId);
-                }}
-                className={cn(
-                  "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border transition-all active:scale-95 cursor-pointer",
-                  hasUserReacted
-                    ? "bg-orange-500/10 border-orange-500 text-orange-950 hover:bg-orange-500/20"
-                    : "bg-white border-orange-100 text-orange-600 hover:bg-orange-50"
-                )}
-                title={stickerName}
-              >
-                <img src={sticker.url} alt={stickerName} className="w-4 h-4 object-contain inline shrink-0" referrerPolicy="no-referrer" />
-                <span className="text-[10px] sm:text-xs">{stickerName}</span>
-                <span className="text-[9px] sm:text-xs text-orange-400 font-extrabold">×{uidsList.length}</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Confidence Goal & Relatability Ratio Gauge Container */}
-      {showConfidenceSection && (
-        <div className="mb-5 bg-orange-100/30 rounded-2xl p-4 border border-orange-100/50 text-xs text-orange-950 space-y-2">
-          <div className="flex items-center justify-between text-[11px] font-bold text-orange-400">
-            <span className="flex items-center gap-1">
-              <Sparkles className="w-3.5 h-3.5 text-orange-500 fill-orange-200 animate-pulse" />
-              予想共感度: {scene.confidence}%
-            </span>
-            <span className="bg-orange-50 text-[10px] px-2 py-0.5 rounded-full border border-orange-100">
-              閲覧数: {views}
-            </span>
-          </div>
-
-          {!isAnalyzable ? (
-            <div className="flex items-center justify-between text-[10px] font-bold text-orange-500 bg-orange-50 border border-orange-100 px-3 py-2 rounded-xl">
-              <span>📊 データ集計中 (最低5閲覧で判定)</span>
-              <span className="text-orange-600 font-black animate-pulse">あと {5 - views} 閲覧</span>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold text-orange-400">実際の共感度 (いいね/閲覧)</span>
-                <span className="font-extrabold text-orange-600 font-mono">
-                  {actualRate}%
-                </span>
-              </div>
-              
-              {/* Progress Gauges */}
-              <div className="relative w-full h-2.5 bg-orange-100/50 rounded-full overflow-hidden border border-orange-100">
-                <div 
-                  className="absolute left-0 top-0 h-full bg-orange-200/60"
-                  style={{ width: `${scene.confidence}%` }}
-                />
-                <div 
-                  className={cn(
-                    "absolute left-0 top-0 h-full rounded-full transition-all duration-500",
-                    isSuccess 
-                      ? "bg-gradient-to-r from-emerald-400 to-teal-500 shadow-sm" 
-                      : "bg-orange-400"
-                  )}
-                  style={{ width: `${actualRate}%` }}
-                />
-              </div>
-
-              {/* Status Badge */}
-              <div className="flex items-center justify-between pt-1">
-                {isSuccess ? (
-                  <span className="inline-flex items-center gap-1 text-[11px] font-extrabold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200 shadow-sm">
-                    🎯 シンクロ成功！ (誤差 {errorMargin}%以内)
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1 text-[11px] font-extrabold text-orange-500 bg-orange-50 px-2.5 py-1 rounded-lg border border-orange-200/30">
-                    📊 予測誤差 {errorMargin}%
-                  </span>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
       <div className="flex items-center justify-between border-t border-orange-50 pt-4">
         <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-orange-400">
-          
-          {/* Sticker Button */}
-          <div className="relative">
-            <button 
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowStickerSelector(!showStickerSelector);
-              }}
-              className="flex items-center gap-1 text-xs text-orange-400 hover:text-orange-600 transition-all active:scale-90 duration-100 cursor-pointer focus:outline-none"
-            >
-              <Smile className="w-4 h-4" />
-              <span className="font-bold">{t('ステッカー', 'Sticker')}</span>
-            </button>
-            
-            {showStickerSelector && (
-              <div className="absolute bottom-8 left-0 z-50 animate-in fade-in zoom-in-95 duration-100" onClick={(e) => e.stopPropagation()}>
-                <StickerSelector 
-                  onSelect={(stickerId) => {
-                    onToggleSticker?.(scene.id, stickerId);
-                    setShowStickerSelector(false);
-                  }}
-                  onClose={() => setShowStickerSelector(false)}
-                />
-              </div>
-            )}
-          </div>
-
           <button 
             onClick={(e) => { e.stopPropagation(); onCopy?.(scene); }}
             className="flex items-center gap-1 text-xs text-orange-400 hover:text-orange-600 transition-all active:scale-90 duration-100 cursor-pointer focus:outline-none"
             title={t("コピー", "Copy")}
           >
-            <span className="select-none">📋</span>
+            <span className="select-none font-sans">📋</span>
             <span className="font-bold">{t('コピー', 'Copy')}</span>
           </button>
           
@@ -5562,65 +5300,7 @@ function DetailModal({
             </div>
           </div>
 
-          {/* Interactive incremental stone-chipping station */}
-          <FossilChipStation scene={liveScene} currentUserProfile={currentUserProfile} onChipped={() => {}} />
-
-          {/* Sent Stickers display inside DetailModal for the post itself */}
-          {liveScene.stickers && Object.keys(liveScene.stickers).length > 0 && (
-            <div className="flex flex-wrap gap-2 mt-4 bg-orange-50/30 p-2.5 rounded-2xl border border-orange-100/50">
-              {Object.entries(liveScene.stickers).map(([stickerId, uids]) => {
-                const sticker = STICKERS.find(s => s.id === stickerId);
-                if (!sticker) return null;
-                const stickerName = language === 'en' ? sticker.nameEn : sticker.name;
-                const uidsList = Array.isArray(uids) ? uids : [];
-                const hasUserReacted = user ? uidsList.includes(user.uid) : false;
-                return (
-                  <button
-                    key={stickerId}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onToggleSticker?.(liveScene.id, stickerId);
-                    }}
-                    className={cn(
-                      "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border transition-all active:scale-95 cursor-pointer",
-                      hasUserReacted
-                        ? "bg-orange-500/10 border-orange-500 text-orange-950 hover:bg-orange-500/20"
-                        : "bg-white border-orange-100 text-orange-600 hover:bg-orange-50"
-                    )}
-                    title={stickerName}
-                  >
-                    <img src={sticker.url} alt={stickerName} className="w-4 h-4 object-contain inline shrink-0" referrerPolicy="no-referrer" />
-                    <span className="text-[10px] sm:text-xs">{stickerName}</span>
-                    <span className="text-[9px] sm:text-xs text-orange-400 font-extrabold">×{uidsList.length}</span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-
           <div className="mt-6 flex justify-end gap-2.5">
-            {/* Sticker addition button for the post */}
-            <div className="relative">
-              <button 
-                onClick={() => setShowPostStickerSelector(!showPostStickerSelector)}
-                className="inline-flex items-center gap-1.5 px-4 py-2 bg-orange-50 hover:bg-orange-100 text-orange-600 rounded-2xl text-xs font-bold transition-all active:scale-90 duration-100 cursor-pointer shadow-sm border border-orange-100 focus:outline-none animate-in fade-in"
-              >
-                <Smile className="w-4 h-4" />
-                <span>{t('ステッカー', 'Sticker')}</span>
-              </button>
-              {showPostStickerSelector && (
-                <div className="absolute right-0 bottom-10 z-50 animate-in fade-in zoom-in-95 duration-100" onClick={(e) => e.stopPropagation()}>
-                  <StickerSelector 
-                    onSelect={(stickerId) => {
-                      onToggleSticker?.(liveScene.id, stickerId);
-                      setShowPostStickerSelector(false);
-                    }}
-                    onClose={() => setShowPostStickerSelector(false)}
-                  />
-                </div>
-              )}
-            </div>
-
             <button 
               onClick={() => onCopy?.(liveScene)}
               className="inline-flex items-center gap-1.5 px-4 py-2 bg-orange-50 hover:bg-orange-100 text-orange-600 rounded-2xl text-xs font-bold transition-all active:scale-90 duration-100 cursor-pointer shadow-sm border border-orange-100"
@@ -5670,7 +5350,8 @@ function ProfileView({
   onOpenGacha,
   gachaRevision,
   onCopy,
-  onToggleSticker
+  onToggleSticker,
+  onOpenSashiire
 }: { 
   uid: string, 
   onBack: () => void, 
@@ -5696,7 +5377,8 @@ function ProfileView({
   onOpenGacha?: () => void,
   gachaRevision?: number,
   onCopy?: (scene: Scene) => void,
-  onToggleSticker?: (sceneId: string, stickerId: string) => void
+  onToggleSticker?: (sceneId: string, stickerId: string) => void,
+  onOpenSashiire?: (target: { uid: string, displayName: string, isSelf: boolean, supportLink: string }) => void
 }) {
   const { language, t } = useLanguage();
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -6042,16 +5724,21 @@ function ProfileView({
                         {t('メッセージ', 'Message')}
                       </button>
                     )}
-                    {profile?.supportLink && (
-                      <a 
-                        href={profile.supportLink}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                    {!isOwnProfile && onOpenSashiire && (
+                      <button 
+                        onClick={() => {
+                          onOpenSashiire({
+                            uid: uid,
+                            displayName: profile?.displayName || t('誰か', 'Someone'),
+                            isSelf: uid === auth.currentUser?.uid,
+                            supportLink: ''
+                          });
+                        }}
                         className="bg-rose-500 hover:bg-rose-600 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-md shadow-rose-500/10 active:scale-95"
-                        title={t('このユーザーにおやつ（電子マネーやギフト）を差し入れする', 'Gift this user some snacks (E-Money/Gift)')}
+                        title={t('このユーザーにおやつコインを差し入れする', 'Gift J-Coins as snacks to this user')}
                       >
-                        <span>🎁 {t('差し入れ', 'Gift')}</span>
-                      </a>
+                        <span>🎁 {t('おやつを送る', 'Gift Snack')}</span>
+                      </button>
                     )}
                   </div>
                 )}
@@ -6152,11 +5839,7 @@ function ProfileView({
         <div className="flex gap-8 border-t border-orange-50 pt-8">
           <div>
             <p className="text-[10px] font-bold text-orange-300 uppercase tracking-widest mb-1">{t('投稿数', 'Posts')}</p>
-            <p className="text-2xl font-bold text-orange-900">{scenes.length}</p>
-          </div>
-          <div>
-            <p className="text-[10px] font-bold text-orange-300 uppercase tracking-widest mb-1">{t('総獲得👍', 'Total Likes 👍')}</p>
-            <p className="text-2xl font-bold text-orange-900">{scenes.reduce((acc, s) => acc + s.upvotes, 0)}</p>
+            <p className="text-2xl font-bold text-[#b55c27]">{scenes.length}</p>
           </div>
         </div>
 
@@ -6317,57 +6000,37 @@ function ProfileView({
                   </div>
                 </div>
 
-                {/* 3. おやつの差し入れ (投げ銭リンク) の設定 */}
-                <div className="bg-gradient-to-br from-amber-50 to-orange-50/60 p-6 rounded-[32px] border border-orange-100/60 flex flex-col justify-between">
+                {/* 3. おやつの差し入れ（獲得状況）の実績表示 */}
+                <div className="bg-gradient-to-br from-pink-50 to-rose-50/60 p-6 rounded-[32px] border border-rose-100 flex flex-col justify-between" id="profile-sashiire-stats">
                   <div>
-                    <h4 className="text-xs font-black text-orange-900 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                      <span>☕️ {t('おやつ応援（PayPayやKyash等の投げ銭リンク）', 'Setup Snack Gifts (PayPay, Kyash, etc.)')}</span>
+                    <h4 className="text-xs font-black text-rose-900 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                      <span>🎁 {t('おやつの差し入れ（受取実績）', 'Snack Gifts Received')}</span>
                     </h4>
-                    <p className="text-[11px] font-bold text-orange-750/90 leading-relaxed mb-4">
-                      {t('銀行口座が作れなくても大丈夫！PayPayの送金受け取りURLや、Kyash（コンビニ等で本人確認すれば送金リンクで受取・交換がすぐ可能）、OFUSE、gifteeなどの受け取りURLを設定できます。設定するとプロフに可愛い差し入れボタンが付き、サポーターからおやつ（受取金・電子マネー）を直接受け取れるようになります。', 'No bank account needed! Provide your PayPay receiving link, Kyash remittance ID, OFUSE, or Amazon Gift list links. We add a cozy "Snack Gift" button so visitors can send tips/remittance directly to you.')}
+                    <p className="text-[11px] font-bold text-rose-800 leading-relaxed mb-4">
+                      {t('地味に面白いあるある話や共感を集めると、他のユーザーから手持ち of J-Coin を通じて美味しい「おやつ」が差し入れされます！受け取った差し入れ（J-Coin）はそのままあなたの財布にチャージされ、ガチャや市場取引に利用可能。地味話で盛り上げてたくさんのおやつをゲットしましょう！', 'When you post relatable scenes, other users wrap J-Coins as Snack gifts for you! Gifted J-Coins directly fuel your wallet balance. Post funny segments to collect sweet rewards!')}
                     </p>
                   </div>
 
-                  <div>
-                    <span className="text-[9px] font-black text-orange-400 block mb-1">{t('設定する決済・送金リンク(PayPay/Kyash等)', 'Tip / Snack link URL')}</span>
-                    {supportLinkEditing ? (
-                      <div className="space-y-1.5">
-                        <input 
-                          type="url" 
-                          placeholder="https://paypay.ne.jp/qr/... または https://kyash.me/share/..."
-                          value={supportLinkInput}
-                          onChange={e => setSupportLinkInput(e.target.value)}
-                          className="bg-white border border-orange-200 rounded-xl px-2.5 py-1.5 text-[9px] font-mono text-orange-950 w-full outline-none"
-                        />
-                        <div className="flex gap-1">
-                          <button 
-                            onClick={handleUpdateSupportLink}
-                            disabled={supportLinkLoading}
-                            className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-xl text-[9px] font-bold transition-all flex-1"
-                          >
-                            {supportLinkLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : t('保存', 'Save')}
-                          </button>
-                          <button 
-                            onClick={() => { setSupportLinkInput(profile?.supportLink || ''); setSupportLinkEditing(false); }}
-                            className="bg-stone-200 hover:bg-stone-300 text-stone-700 px-3 py-1.5 rounded-xl text-[9px] font-bold transition-all"
-                          >
-                            {t('キャンセル', 'Cancel')}
-                          </button>
+                  <div className="bg-white border border-rose-100 rounded-2xl p-4 flex items-center justify-between shadow-sm">
+                    <div className="flex items-center gap-2">
+                      <span className="text-2xl animate-pulse">🍪</span>
+                      <div>
+                        <span className="text-[10px] font-bold text-rose-500 block">{t('累計獲得おやつ数', 'Total Snacks Received')}</span>
+                        <div className="flex items-baseline gap-1">
+                          <span className="text-xl font-black text-rose-950 font-mono">
+                            {profile?.sashiireCount || 0}
+                          </span>
+                          <span className="text-[9px] font-bold text-rose-700">{t('回', 'times')}</span>
                         </div>
                       </div>
-                    ) : (
-                      <div className="flex items-center justify-between p-2 bg-white border border-orange-100 rounded-xl">
-                        <span className="text-[8.5px] text-orange-600 font-semibold truncate flex-1 pr-2">
-                          {profile?.supportLink || t('設定されていません', 'Not configured')}
-                        </span>
-                        <button 
-                          onClick={() => setSupportLinkEditing(true)}
-                          className="bg-orange-100 hover:bg-orange-200 text-orange-700 px-2.5 py-1 rounded-lg text-[9px] font-black transition-all"
-                        >
-                          {t('編集', 'Edit')}
-                        </button>
-                      </div>
-                    )}
+                    </div>
+
+                    <div className="text-right">
+                      <span className="text-[9px] font-black text-rose-400 block mb-0.5">{t('安心の地味決済', '100% Safe Coin')}</span>
+                      <span className="text-[9.5px] bg-rose-50 text-rose-700 px-2 py-0.5 rounded-full font-black border border-rose-100">
+                        J-Coin 決済使用中
+                      </span>
+                    </div>
                   </div>
                 </div>
 

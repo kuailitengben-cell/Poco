@@ -46,6 +46,7 @@ interface KairanbanViewProps {
   allScenes: Scene[];
   onBack: () => void;
   onProfileClick: (uid: string) => void;
+  onOpenSashiire?: (targetData: { uid: string, displayName: string, isSelf: boolean, supportLink: string }) => void;
 }
 
 export default function KairanbanView({
@@ -53,7 +54,8 @@ export default function KairanbanView({
   profile,
   allScenes,
   onBack,
-  onProfileClick
+  onProfileClick,
+  onOpenSashiire
 }: KairanbanViewProps) {
   // Sort scenes dynamically to rescue buried/quiet posts first ("埋もれた投稿の救済")
   const sortedScenes = useMemo(() => {
@@ -311,51 +313,17 @@ export default function KairanbanView({
       alert('この地味話は現在、石化して化石になっています。「発掘調査」を行って石化を解いた後で、差し入れを送ることができます！');
       return;
     }
-    try {
-      // Fetch creator profile to open their Kyash/OFUSE/Remittance link if exists
-      const authorRef = doc(db, 'profiles', currentScene.authorId);
-      const authorSnap = await getDoc(authorRef);
-      const authorData = authorSnap.exists() ? authorSnap.data() as Profile : null;
-
-      // Increment sashiire counter on the scene
-      const sceneRef = doc(db, 'scenes', currentScene.id);
-      await updateDoc(sceneRef, {
-        sashiireCount: increment(1)
+    
+    // Trigger parent J-Coin snack tipping modal directly
+    if (onOpenSashiire) {
+      onOpenSashiire({
+        uid: currentScene.authorId,
+        displayName: currentScene.authorName || '投稿主',
+        isSelf: user ? currentScene.authorId === user.uid : false,
+        supportLink: ''
       });
-
-      // Send Sashiire notification
-      if (user && currentScene.authorId && currentScene.authorId !== user.uid) {
-        const senderName = profile?.displayName || user.displayName || '誰か';
-        await addDoc(collection(db, 'admin_messages'), {
-          recipientId: currentScene.authorId,
-          senderId: user.uid,
-          content: `☕️ ${senderName}さんからあなたの地味話「${currentScene.title}」に「差し入れ（温かいおやつの気持ち）」が届きました！`,
-          createdAt: serverTimestamp(),
-          read: false,
-          sceneId: currentScene.id,
-          type: 'sashiire'
-        });
-      }
-
-      // Display cute alert & route url
-      if (authorData?.supportLink) {
-        const link = authorData.supportLink.trim();
-        const isPayPay = link.toLowerCase().includes('paypay') || link.includes('paypay.ne.jp');
-        const isKyash = link.toLowerCase().includes('kyash');
-        const targetName = authorData.displayName || currentScene.authorName || '投稿主';
-        
-        let appName = 'おやつ差し入れ窓口';
-        if (isPayPay) appName = 'PayPay 送金・受け取り窓口';
-        else if (isKyash) appName = 'Kyash 受け取り窓口';
-        else if (link.toLowerCase().includes('ofuse')) appName = 'OFUSE 応援窓口';
-
-        alert(`投稿主の ${appName} (${targetName}さん 宛) へジャンプします！美味しいおやつやコーヒーを届けて盛り上げましょう！🎁☕️`);
-        window.open(link, '_blank', 'noopener,noreferrer');
-      } else {
-        alert('差し入れありがとうございます！温かいおやつの気持ち「差し入れ☕️」が投稿主の元へ届きました。');
-      }
-    } catch (err) {
-      console.error('Failed to submit sashiire:', err);
+    } else {
+      alert('差し入れ機能は現在利用できません。');
     }
   };
 
@@ -551,7 +519,7 @@ export default function KairanbanView({
 
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-[#241712] flex flex-col font-sans transition-colors duration-300 pb-16">
+    <div className="fixed inset-0 z-50 overflow-hidden bg-[#241712] flex flex-col font-sans transition-colors duration-300">
       
       {/* Immersive cork board background layer */}
       <div className="absolute inset-0 z-0 bg-[#3d271d] opacity-90" style={{
@@ -559,8 +527,8 @@ export default function KairanbanView({
         backgroundSize: '40px 40px'
       }}></div>
 
-      {/* Top Header Rail */}
-      <div className="relative z-10 w-full max-w-lg mx-auto flex items-center justify-between px-6 py-4 border-b border-orange-950/20 bg-gradient-to-b from-[#241712] to-transparent">
+      {/* Top Header Rail - Sticky/Fixed at the top with a background so it's always readable & accessible */}
+      <div className="sticky top-0 z-30 w-full max-w-lg mx-auto flex items-center justify-between px-6 py-4 border-b border-orange-950/30 bg-[#241712] shadow-md shrink-0">
         <button 
           onClick={onBack}
           className="flex items-center gap-1 text-xs font-black tracking-widest text-orange-200 bg-orange-950/40 hover:bg-orange-950/60 transition px-3.5 py-2 rounded-2xl cursor-pointer border border-orange-900/40 shadow-inner"
@@ -582,24 +550,8 @@ export default function KairanbanView({
         </div>
       </div>
 
-      {/* Tab Selectors: Regular vs Fossil Museum */}
-      <div className="relative z-10 w-full max-w-xs mx-auto mt-2 flex bg-orange-950/45 p-1 rounded-full border border-orange-900/30 shadow-inner">
-        <button
-          onClick={() => setKairanFilterMode('all')}
-          className={`flex-1 py-1.5 text-xs font-bold rounded-full transition-all cursor-pointer border-none focus:outline-none ${kairanFilterMode === 'all' ? 'bg-[#5b3224] text-white shadow' : 'text-orange-300 hover:text-orange-50 bg-transparent'}`}
-        >
-          📄 通常回覧板
-        </button>
-        <button
-          onClick={() => setKairanFilterMode('fossils')}
-          className={`flex-1 py-1.5 text-xs font-bold rounded-full transition-all cursor-pointer border-none focus:outline-none ${kairanFilterMode === 'fossils' ? 'bg-[#5b3224] text-white shadow' : 'text-orange-300 hover:text-orange-50 bg-transparent'}`}
-        >
-          🏛 人類現象化石館
-        </button>
-      </div>
-
-      {/* Main Fullscreen Stage */}
-      <div className="flex-1 w-full max-w-lg mx-auto relative flex items-center justify-center p-2 sm:p-4 min-h-0">
+      {/* Main Scrollable Stage - Positioned cleanly below the header to allow scrolling and prevent any overlaps */}
+      <div className="flex-1 w-full max-w-lg mx-auto relative flex flex-col justify-start items-center p-4 pt-6 pb-24 overflow-y-auto no-scrollbar min-h-0">
         {filteredScenes.length === 0 ? (
           <div className="text-center p-8 bg-[#2d1b13]/80 rounded-3xl border border-orange-900/40 backdrop-blur text-orange-200 z-10">
             <AlertTriangle className="w-12 h-12 text-orange-400 mx-auto mb-4" />
@@ -626,7 +578,7 @@ export default function KairanbanView({
                 scale: { type: 'spring', stiffness: 220, damping: 24 },
                 rotate: { type: 'tween', duration: 0.3 }
               }}
-              className={`relative z-20 w-full max-w-[465px] h-[58vh] xs:h-[62vh] sm:h-[65vh] max-h-[600px] min-h-[490px] rounded-[32px] shadow-2xl flex flex-col p-5 sm:p-6 select-text cursor-grab active:cursor-grabbing border ${
+              className={`relative z-20 w-full max-w-[465px] h-auto rounded-[32px] shadow-2xl flex flex-col p-5 sm:p-6 select-text cursor-grab active:cursor-grabbing border ${
                 isYellowed 
                   ? 'bg-gradient-to-b from-[#f5ebd2] to-[#eedec0] text-amber-950 border-[#dfcaa1]' 
                   : 'bg-gradient-to-b from-[#faf9f6] to-[#f4f1ea] text-stone-900 border-stone-200/50'
@@ -638,20 +590,8 @@ export default function KairanbanView({
               }}
             >
               
-              {/* Paper Visual State Stamps (Aged, Highly Circulated or Highly Refreshed stamps) */}
+              {/* Paper Visual State Stamps */}
               <div className="absolute top-3 right-3 flex gap-1.5 pointer-events-none">
-                {hasCirculationPin && (
-                  <div className="bg-red-500/10 text-red-600 border border-red-500/30 text-[9px] font-bold px-2 py-0.5 rounded-full flex items-center gap-0.5 animate-pulse">
-                    <span>📌</span>
-                    <span>大回覧中</span>
-                  </div>
-                )}
-                {hasTeaPin && (
-                  <div className="bg-amber-600/10 text-amber-800 border border-amber-600/20 text-[9px] font-bold px-2 py-0.5 rounded-full flex items-center gap-0.5">
-                    <span>☕</span>
-                    <span>差し入れ多数</span>
-                  </div>
-                )}
                 {isYellowed && (
                   <div className="bg-yellow-700/5 text-yellow-800/40 text-[8px] font-mono border border-yellow-700/10 px-1.5 py-0.5 rounded italic">
                     Nostalgic
@@ -685,31 +625,19 @@ export default function KairanbanView({
                   </div>
                   <p className="text-[9px] text-stone-500 font-mono flex items-center gap-2">
                     <span>{currentScene.createdAt?.toDate ? currentScene.createdAt.toDate().toLocaleDateString('ja-JP') : '昨日'}</span>
-                    <span>•</span>
-                    <span>👀 {localViewsMap[currentScene.id] ?? (currentScene.views || 0)} 閲覧</span>
                   </p>
                 </div>
               </div>
 
                {/* Huge Post Content Body - Simple focus-centric layout */}
-              <div className="flex-1 flex flex-col py-1 overflow-y-auto no-scrollbar min-h-0">
+              <div className="flex-1 flex flex-col py-1 shrink-0">
                 <div className="relative p-5 bg-stone-100/40 border border-stone-250/30 rounded-[2rem] overflow-hidden mb-3">
-                  {/* 3D Geological Fossil Overlay covering the entire Post box inside Kairanban */}
-                  <FossilOverlay percentage={fossilInfo?.percentage || 0} sceneId={currentScene.id} />
-
-                  <h2 className="text-lg sm:text-xl font-extrabold tracking-tight mb-2.5 text-stone-900 font-sans leading-snug flex items-center justify-between gap-1.5">
-                    <span className="truncate">
-                      <FossilizedContent text={currentScene.title} percentage={fossilInfo?.percentage || 0} sceneId={currentScene.id} isTitle={true} />
-                    </span>
-                    {fossilInfo && fossilInfo.tier !== 'fresh' && (
-                      <span className="text-[9px] font-bold text-stone-600 bg-stone-200/80 border border-stone-300 px-2 py-0.5 rounded-full select-none shrink-0 animate-pulse">
-                        {fossilInfo.emoji} {fossilInfo.label} ({fossilInfo.percentage}%)
-                      </span>
-                    )}
+                  <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight mb-2.5 text-stone-900 font-sans leading-snug">
+                    {currentScene.title}
                   </h2>
                   
-                  <p className="text-sm font-bold leading-relaxed text-stone-800 whitespace-pre-line font-serif mb-2.5">
-                    <FossilizedContent text={currentScene.content} percentage={fossilInfo?.percentage || 0} sceneId={currentScene.id} isTitle={false} />
+                  <p className="text-sm sm:text-base font-bold leading-relaxed text-[#2d1b13] whitespace-pre-line font-serif mb-2.5">
+                    {currentScene.content}
                   </p>
 
                   {currentScene.imageUrl && (
@@ -718,13 +646,10 @@ export default function KairanbanView({
                     </div>
                   )}
                 </div>
-
-                {/* Interactive incremental stone-chipping station */}
-                <FossilChipStation scene={currentScene} currentUserProfile={profile} onChipped={() => {}} />
               </div>
 
               {/* Quiet Sympathy Embedded Action button inside the card */}
-              <div className="mt-4 shrink-0 pointer-events-auto">
+              <div className="mt-4 shrink-0 pointer-events-auto flex flex-col gap-3">
                 <button 
                   onClick={(e) => {
                     e.stopPropagation();
@@ -733,120 +658,75 @@ export default function KairanbanView({
                   className="w-full py-4 px-5 rounded-2xl bg-rose-500 hover:bg-rose-600 active:scale-[96%] text-white font-extrabold text-sm flex items-center justify-center gap-2.5 shadow-lg shadow-rose-500/10 hover:shadow-rose-400/25 transition-all duration-150 cursor-pointer select-none border-none animate-in fade-in zoom-in-95"
                 >
                   <Heart className="w-5 h-5 fill-current animate-pulse-subtle" />
-                  <span>地味に共感！ <span className="font-mono text-xs bg-white/20 px-2 py-0.5 rounded-full ml-1 font-bold">{currentScene.upvotes || 0}</span></span>
+                  <span>地味に共感！</span>
                 </button>
-              </div>
 
-              {/* Inline display showing circulating volume */}
-              <div className="mt-4 pt-3 border-t border-dotted border-stone-900/10 flex items-center justify-between text-[11px] font-bold text-stone-600 font-mono">
-                <div className="flex items-center gap-1">
-                  <span>📌 回覧:</span>
-                  <span className="text-stone-900">{(currentScene as any).kairanAmount || 0}J-コイン</span>
-                  <span className="text-[9px] text-stone-400">({(currentScene as any).kairanCount || 0}人が回覧)</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <span>☕ 差入:</span>
-                  <span className="text-stone-950">{(currentScene as any).sashiireCount || 0} 回</span>
+                <div className="flex justify-between items-center px-1 text-[10px] text-stone-400 font-bold">
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowReportModal(true);
+                    }}
+                    className="hover:text-red-500 transition cursor-pointer"
+                  >
+                    通報する
+                  </button>
+                  {isAdmin && (
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeletePost();
+                      }}
+                      className="text-red-600 hover:text-red-500 flex items-center gap-0.5 transition cursor-pointer font-extrabold"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      <span>削除(管理者)</span>
+                    </button>
+                  )}
                 </div>
               </div>
 
             </motion.div>
 
-            {/* Quick-turn Arrow Buttons Overlaying Screen Borders */}
-            <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-between px-2 pointer-events-none">
-              <button 
-                onClick={() => triggerPageTurn('prev')}
-                className="w-10 h-10 rounded-full bg-orange-950/40 text-orange-200 border border-orange-900/40 backdrop-blur-xs flex items-center justify-center hover:bg-orange-950/80 active:scale-90 transition pointer-events-auto shadow cursor-pointer"
-                title="前の紙へ"
-              >
-                <ChevronLeft className="w-5 h-5" />
-              </button>
-              <button 
-                onClick={() => triggerPageTurn('next')}
-                className="w-10 h-10 rounded-full bg-orange-950/40 text-orange-200 border border-orange-900/40 backdrop-blur-xs flex items-center justify-center hover:bg-orange-950/80 active:scale-90 transition pointer-events-auto shadow cursor-pointer"
-                title="次の紙へ"
-              >
-                <ChevronRight className="w-5 h-5" />
-              </button>
-            </div>
+            {/* Quick Navigation Control Bar below the card */}
+            <div className="mt-8 flex flex-col items-center gap-4 w-full max-w-[465px] shrink-0 pointer-events-auto">
+              <div className="flex items-center justify-between w-full px-2">
+                <button 
+                  onClick={() => triggerPageTurn('prev')}
+                  className="flex items-center gap-1 text-xs font-black px-4 py-2.5 rounded-full bg-[#341d13] text-[#f5ebd2] border border-[#dfcaa1]/30 hover:bg-[#43271b] transition cursor-pointer"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  <span>前の地味話</span>
+                </button>
 
-            {/* Pagination Bullet bar right underneath the paper card */}
-            <div className="mt-3.5 flex justify-center gap-1.5 pointer-events-auto shrink-0 z-30">
-              {filteredScenes.slice(Math.max(0, currentIndex - 4), Math.min(filteredScenes.length, currentIndex + 5)).map((it, idx) => {
-                const absoluteIndex = filteredScenes.indexOf(it);
-                const isActive = absoluteIndex === currentIndex;
-                return (
-                  <button 
-                    key={it.id} 
-                    onClick={() => setCurrentIndex(absoluteIndex)}
-                    className={`h-2 rounded-full transition-all duration-300 ${isActive ? 'w-5 bg-orange-500' : 'w-2 bg-stone-500/50'}`}
-                  />
-                );
-              })}
+                {/* Pagination indicator dots */}
+                <div className="flex gap-1.5 items-center">
+                  {filteredScenes.slice(Math.max(0, currentIndex - 3), Math.min(filteredScenes.length, currentIndex + 4)).map((it, idx) => {
+                    const absoluteIndex = filteredScenes.indexOf(it);
+                    const isActive = absoluteIndex === currentIndex;
+                    return (
+                      <button 
+                        key={it.id} 
+                        onClick={() => setCurrentIndex(absoluteIndex)}
+                        className={`h-2 rounded-full transition-all duration-300 ${isActive ? 'w-4 bg-[#f5ebd2]' : 'w-2 bg-stone-500/50'}`}
+                      />
+                    );
+                  })}
+                </div>
+
+                <button 
+                  onClick={() => triggerPageTurn('next')}
+                  className="flex items-center gap-1 text-xs font-black px-4 py-2.5 rounded-full bg-rose-500 hover:bg-rose-600 text-white transition cursor-pointer shadow-md"
+                >
+                  <span>次の地味話</span>
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
           </div>
         )}
       </div>
-
-      {/* Fullscreen Interactive Action footer HUD */}
-      {currentScene && (
-        <div className="relative z-10 w-full max-w-lg mx-auto bg-gradient-to-t from-[#241712] via-[#2d1b13] to-transparent py-4 px-5 flex flex-col gap-3 shrink-0">
-          
-          <div className="flex items-center justify-around gap-3 px-1">
-            
-            {/* 1. 回覧板に回す Button */}
-            <button 
-              onClick={() => {
-                if (isLocked) {
-                  alert('この地味話は現在、石化して化石になっています。「発掘調査」を行って石化を解いた後で、回覧板に回して広めることができます！');
-                  return;
-                }
-                setShowKairanModal(true);
-              }}
-              className="flex-1 flex flex-col items-center justify-center gap-1.5 bg-[#45281b]/70 hover:bg-[#543222] border border-orange-950/40 text-xs font-extrabold text-orange-100 py-3 rounded-2xl active:scale-95 transition cursor-pointer shadow-md"
-            >
-              <Pin className="w-5 h-5 text-amber-500 animate-bounce-slow" />
-              <div className="flex flex-col items-center leading-none">
-                <span className="mb-0.5 text-orange-50 font-black">回覧板に回す</span>
-                <span className="text-[8.5px] text-orange-300 font-mono">📌 1ユーザー1回 (J)</span>
-              </div>
-            </button>
-
-            {/* 2. 差し入れ Button */}
-            <button 
-              onClick={handleSashiire}
-              className="flex-1 flex flex-col items-center justify-center gap-1.5 bg-[#45281b]/70 hover:bg-[#543222] border border-orange-950/40 text-xs font-extrabold text-orange-100 py-3 rounded-2xl active:scale-95 transition cursor-pointer shadow-md"
-            >
-              <Coffee className="w-5 h-5 text-amber-600" />
-              <div className="flex flex-col items-center leading-none">
-                <span className="mb-0.5 text-orange-50 font-black">差し入れする</span>
-                <span className="text-[8.5px] text-orange-300 font-mono">☕ 5 J-Coins</span>
-              </div>
-            </button>
-
-          </div>
-
-          <div className="flex justify-between px-4 text-[10px] text-orange-400/50">
-            <button 
-              onClick={() => setShowReportModal(true)}
-              className="hover:text-red-400 transition"
-            >
-              通報
-            </button>
-            {isAdmin && (
-              <button 
-                onClick={handleDeletePost}
-                className="text-red-500 font-bold hover:text-red-400 flex items-center gap-0.5"
-              >
-                <Trash2 className="w-3 h-3" />
-                <span>削除(管理者)</span>
-              </button>
-            )}
-          </div>
-
-        </div>
-      )}
 
       {/* COIN CIRCULATION MODAL (📌 回覧板に回す) */}
       <AnimatePresence>
