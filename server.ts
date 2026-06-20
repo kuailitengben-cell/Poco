@@ -288,8 +288,8 @@ async function simulateRandomAction(db: any, ai: GoogleGenAI) {
     const roll = Math.random();
     console.log(`[BOT TICK] Preparing action for ${bot.displayName} (Roll: ${roll.toFixed(3)})`);
 
-    if (roll < 0.35) {
-      // 1. Post a scene (Scene Creation)
+    if (roll < 0.15) {
+      // 1. Post a scene (Scene Creation) - Reduced posting frequency
       console.log(`[BOT ACTION] Creating Scene...`);
       const prompt = `You are simulating a user on 'Jimitchi' (a social network for highly relatable, mundane, everyday failures and thoughts in Japan).
 Write an authentic post matching your persona of "${bot.displayName}" whose bio is: "${bot.bio}".
@@ -394,50 +394,8 @@ Otherwise return both as null. Return ONLY RAW JSON. No backticks.
         console.warn("Failed to parse automatic BOT stock auto-alignment:", e);
       }
 
-    } else if (roll < 0.65) {
-      // 2. Post a comment
-      console.log(`[BOT ACTION] Writing Comment...`);
-      const scenesSnap = await db.collection("scenes").orderBy("createdAt", "desc").limit(12).get();
-      if (scenesSnap.empty) return;
-
-      const validDocs = scenesSnap.docs.filter(d => d.data().authorId !== bot.uid);
-      if (validDocs.length === 0) return;
-
-      const chosenDoc = validDocs[Math.floor(Math.random() * validDocs.length)];
-      const sceneData = chosenDoc.data();
-
-      const commentPrompt = `You are online as persona "${bot.displayName}" (bio: "${bot.bio}").
-Write a short, highly relatable, friendly Japanese comment (under 50 characters) responding to this Jimitchi post:
-Title: "${sceneData.title}"
-Content: "${sceneData.content}"
-
-Write ONLY the comment body, no quotes, no extra formatting.`;
-
-      const commentRes = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
-        contents: commentPrompt
-      });
-
-      const textVal = (commentRes.text || "").trim().replace(/^"/, "").replace(/"$/, "");
-      if (textVal) {
-        await db.collection("scenes").doc(chosenDoc.id).collection("comments").add({
-          sceneId: chosenDoc.id,
-          authorId: bot.uid,
-          authorName: bot.displayName,
-          authorPhoto: bot.photoURL,
-          content: textVal,
-          createdAt: FieldValue.serverTimestamp()
-        });
-
-        await chosenDoc.ref.update({
-          commentCount: FieldValue.increment(1)
-        });
-
-        console.log(`[BOT ACTION] Commented by ${bot.displayName} on post "${sceneData.title}": "${textVal}"`);
-      }
-
-    } else if (roll < 0.82) {
-      // 3. JSE Trade
+    } else if (roll < 0.60) {
+      // 2. JSE Trade (replaces comments and covers larger probability space)
       console.log(`[BOT ACTION] Performing JSE Trade...`);
       const stockId = JSE_STOCK_IDS[Math.floor(Math.random() * JSE_STOCK_IDS.length)];
       const qty = Math.floor(Math.random() * 80) + 10;
@@ -590,8 +548,8 @@ async function startServer() {
         
         const templates = LOCAL_BOT_TEMPLATES[bot.uid] || LOCAL_BOT_TEMPLATES.bot_tanaka;
 
-        if (roll < 0.35) {
-          // 1. Post a scene (Scene Creation)
+        if (roll < 0.15) {
+          // 1. Post a scene (Scene Creation) - Reduced posting frequency
           let parsed: { title: string; content: string; category: string; hashtags: string[] } = {
             title: "",
             content: "",
@@ -724,52 +682,8 @@ Otherwise return both as null. Return ONLY RAW JSON. No backticks.
               explanation
             }
           });
-        } else if (roll < 0.65) {
-          // 2. Post a comment
-          const scenes = recentScenes || [];
-          const validScenes = scenes.filter((s: any) => s.authorId !== bot.uid);
-          if (validScenes.length === 0) {
-            return res.json({ success: false, reason: "No target scenes for comment simulation" });
-          }
-
-          const chosenScene = validScenes[Math.floor(Math.random() * validScenes.length)];
-          let textVal = "";
-
-          try {
-            const commentPrompt = `You are online as persona "${bot.displayName}" (bio: "${bot.bio}").
-Write a short, highly relatable, friendly Japanese comment (under 50 characters) responding to this Jimitchi post:
-Title: "${chosenScene.title}"
-Content: "${chosenScene.content}"
-
-Write ONLY the comment body, no quotes, no extra formatting.`;
-
-            const commentRes = await ai.models.generateContent({
-              model: "gemini-3.5-flash",
-              contents: commentPrompt
-            });
-
-            textVal = (commentRes.text || "").trim().replace(/^"/, "").replace(/"$/, "");
-          } catch (apiErr) {
-            console.warn("Gemini API error or limit at trigger-bot (comment), falling back to local template:", apiErr);
-            textVal = templates.comments[Math.floor(Math.random() * templates.comments.length)];
-          }
-
-          if (!textVal) {
-            textVal = templates.comments[Math.floor(Math.random() * templates.comments.length)];
-          }
-
-          return res.json({
-            success: true,
-            actionType: "comment",
-            bot,
-            targetSceneId: chosenScene.id,
-            targetSceneTitle: chosenScene.title,
-            data: {
-              content: textVal
-            }
-          });
-        } else if (roll < 0.77) {
-          // 3. JSE Trade
+        } else if (roll < 0.60) {
+          // 2. JSE Trade (replaces comments and covers larger probability space)
           const stockId = JSE_STOCK_IDS[Math.floor(Math.random() * JSE_STOCK_IDS.length)];
           const qty = Math.floor(Math.random() * 80) + 10;
           const type = Math.random() < 0.65 ? "buy" : "sell";
@@ -784,8 +698,8 @@ Write ONLY the comment body, no quotes, no extra formatting.`;
               type
             }
           });
-        } else if (roll < 0.86) {
-          // 4. Upvote a post
+        } else if (roll < 0.82) {
+          // 3. Upvote a post
           const scenes = recentScenes || [];
           const validScenes = scenes.filter((s: any) => s.authorId !== bot.uid);
           if (validScenes.length === 0) {
@@ -801,7 +715,7 @@ Write ONLY the comment body, no quotes, no extra formatting.`;
             targetSceneTitle: chosenScene.title
           });
         } else if (roll < 0.93) {
-          // 5. Kairanban (Circulate) - Always cheapest (20 coins) to prevent economic crash
+          // 4. Kairanban (Circulate) - Always cheapest (20 coins) to prevent economic crash
           const scenes = recentScenes || [];
           const validScenes = scenes.filter((s: any) => s.authorId !== bot.uid);
           if (validScenes.length === 0) {

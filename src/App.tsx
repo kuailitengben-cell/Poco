@@ -4657,13 +4657,6 @@ const SceneCard: React.FC<{
 
       <div className="flex items-center justify-between border-t border-orange-50 pt-4">
         <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-orange-400">
-          <div className="flex items-center gap-1.5 hover:text-orange-600 transition-colors">
-            <MessageSquare className="w-4 h-4" />
-            <span className="text-xs font-bold">
-              {t('コメント', 'Comments')}
-              {scene.commentCount !== undefined && scene.commentCount > 0 ? ` (${scene.commentCount})` : ` (0)`}
-            </span>
-          </div>
           
           {/* Sticker Button */}
           <div className="relative">
@@ -4717,14 +4710,14 @@ const SceneCard: React.FC<{
             onUpvote();
           }}
           className={cn(
-            "btn-upvote-action flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all active:scale-90",
+            "btn-upvote-action flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all active:scale-85",
             isUpvoted 
-              ? "bg-orange-500 text-white shadow-md shadow-orange-500/20" 
-              : "bg-orange-50 hover:bg-orange-100 text-orange-600"
+              ? "bg-rose-500 text-white shadow-md shadow-rose-500/20" 
+              : "bg-rose-50 hover:bg-rose-150 text-rose-600"
           )}
         >
-          <ThumbsUp className={cn("w-3.5 h-3.5", isUpvoted && "fill-current")} />
-          <span className="text-xs font-bold">{scene.upvotes}</span>
+          <Heart className={cn("w-3.5 h-3.5", isUpvoted && "fill-current")} />
+          <span className="text-xs font-bold">{isUpvoted ? t('共感した！', 'Sympathized') : t('地味に共感！', 'Empathize')}</span>
         </button>
       </div>
     </motion.div>
@@ -5453,7 +5446,6 @@ function DetailModal({
               <FossilOverlay percentage={fossilInfo.percentage} sceneId={scene.id} />
 
               <div className="flex items-center gap-3 mb-6">
-              <div className="flex items-center gap-3">
                 <img src={scene.isAnonymousPost ? 'https://api.dicebear.com/7.x/bottts/svg?seed=anonymous' : (authorProfile?.photoURL || scene.authorPhoto)} alt="" className="w-8 h-8 rounded-full border border-orange-100" />
                 <div className="text-left">
                   <div className="text-xs font-bold text-orange-900 flex items-center gap-2 flex-wrap">
@@ -5483,17 +5475,18 @@ function DetailModal({
                   </p>
                 </div>
               </div>
+              
               <button 
                 onClick={onUpvote}
                 className={cn(
                   "ml-auto flex items-center gap-2 px-4 py-2 rounded-full font-bold shadow-lg transition-all active:scale-95",
                   isUpvoted 
-                    ? "bg-orange-500 text-white shadow-orange-500/20" 
+                    ? "bg-rose-500 text-white shadow-rose-500/20" 
                     : "bg-orange-50 text-orange-600 shadow-orange-900/5 hover:bg-orange-100"
                 )}
               >
-                <ThumbsUp className={cn("w-4 h-4", isUpvoted && "fill-current")} />
-                <span>{scene.upvotes}</span>
+                <Heart className={cn("w-4 h-4", isUpvoted && "fill-current")} />
+                <span>{isUpvoted ? t('共感した！', 'Sympathized') : t('地味に共感！', 'Empathize')}</span>
               </button>
               
               <div className="flex items-center gap-1 ml-2">
@@ -5572,205 +5565,80 @@ function DetailModal({
           {/* Interactive incremental stone-chipping station */}
           <FossilChipStation scene={liveScene} currentUserProfile={currentUserProfile} onChipped={() => {}} />
 
-            {/* Sent Stickers display inside DetailModal for the post itself */}
-            {liveScene.stickers && Object.keys(liveScene.stickers).length > 0 && (
-              <div className="flex flex-wrap gap-2 mt-4 bg-orange-50/30 p-2.5 rounded-2xl border border-orange-100/50">
-                {Object.entries(liveScene.stickers).map(([stickerId, uids]) => {
-                  const sticker = STICKERS.find(s => s.id === stickerId);
-                  if (!sticker) return null;
-                  const stickerName = language === 'en' ? sticker.nameEn : sticker.name;
-                  const uidsList = Array.isArray(uids) ? uids : [];
-                  const hasUserReacted = user ? uidsList.includes(user.uid) : false;
-                  return (
-                    <button
-                      key={stickerId}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onToggleSticker?.(liveScene.id, stickerId);
-                      }}
-                      className={cn(
-                        "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border transition-all active:scale-95 cursor-pointer",
-                        hasUserReacted
-                          ? "bg-orange-500/10 border-orange-500 text-orange-950 hover:bg-orange-500/20"
-                          : "bg-white border-orange-100 text-orange-600 hover:bg-orange-50"
-                      )}
-                      title={stickerName}
-                    >
-                      <img src={sticker.url} alt={stickerName} className="w-4 h-4 object-contain inline shrink-0" referrerPolicy="no-referrer" />
-                      <span className="text-[10px] sm:text-xs">{stickerName}</span>
-                      <span className="text-[9px] sm:text-xs text-orange-400 font-extrabold">×{uidsList.length}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-
-            <div className="mt-6 flex justify-end gap-2.5">
-              {/* Sticker addition button for the post */}
-              <div className="relative">
-                <button 
-                  onClick={() => setShowPostStickerSelector(!showPostStickerSelector)}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-orange-50 hover:bg-orange-100 text-orange-600 rounded-2xl text-xs font-bold transition-all active:scale-90 duration-100 cursor-pointer shadow-sm border border-orange-100 focus:outline-none animate-in fade-in"
-                >
-                  <Smile className="w-4 h-4" />
-                  <span>{t('ステッカー', 'Sticker')}</span>
-                </button>
-                {showPostStickerSelector && (
-                  <div className="absolute right-0 bottom-10 z-50 animate-in fade-in zoom-in-95 duration-100" onClick={(e) => e.stopPropagation()}>
-                    <StickerSelector 
-                      onSelect={(stickerId) => {
-                        onToggleSticker?.(liveScene.id, stickerId);
-                        setShowPostStickerSelector(false);
-                      }}
-                      onClose={() => setShowPostStickerSelector(false)}
-                    />
-                  </div>
-                )}
-              </div>
-
-              <button 
-                onClick={() => onCopy?.(liveScene)}
-                className="inline-flex items-center gap-1.5 px-4 py-2 bg-orange-50 hover:bg-orange-100 text-orange-600 rounded-2xl text-xs font-bold transition-all active:scale-90 duration-100 cursor-pointer shadow-sm border border-orange-100"
-              >
-                <span>📋</span>
-                <span>{t('コピー', 'Copy')}</span>
-              </button>
-            </div>
-
-            {(() => {
-              const isOwnPost = user?.uid === scene.authorId;
-              const showConfidenceSection = scene.confidence !== undefined && scene.confidence !== null && (isOwnPost || isAdmin);
-              return showConfidenceSection && (
-                <div className="mt-8 bg-orange-50/50 rounded-3xl p-6 border border-orange-100 text-sm text-orange-950 space-y-4">
-                  <div className="flex items-center justify-between font-bold text-orange-400">
-                    <span className="flex items-center gap-1.5 text-xs">
-                      <Sparkles className="w-4 h-4 text-orange-500 fill-orange-200 animate-pulse" />
-                      このシーンの予測共感度: {scene.confidence}%
-                    </span>
-                    <span className="text-xs bg-orange-50 px-2.5 py-1 rounded-full border border-orange-100">
-                      現在の閲覧数: {scene.views || 0}
-                    </span>
-                  </div>
-
-                  {(scene.views || 0) < 5 ? (
-                    <div className="flex flex-col gap-2 p-4 bg-orange-50/80 border border-orange-100 rounded-2xl">
-                      <div className="flex justify-between items-center text-xs font-bold text-orange-500">
-                        <span>📊 データ集計中 (最低5回の閲覧で判定可能になります)</span>
-                        <span className="text-orange-600 font-black animate-bounce">あと {5 - (scene.views || 0)} 閲覧</span>
-                      </div>
-                      <div className="w-full bg-orange-200 h-2 rounded-full overflow-hidden">
-                        <div className="bg-orange-500 h-full transition-all" style={{ width: `${((scene.views || 0) / 5) * 100}%` }} />
-                      </div>
-                      <p className="text-[10px] text-orange-300">
-                        誰かがこの投稿の詳細を開くたびに閲覧数が＋1加算されます。
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between text-xs font-bold">
-                        <span className="text-orange-400">{t("実際の共感度 (いいね数 / 閲覧数)", "Actual Empathy Ratio (Likes / Views)")}</span>
-                        <span className="font-black text-lg text-orange-600 font-mono">
-                          {Math.round((scene.upvotes / (scene.views || 1)) * 100)}%
-                        </span>
-                      </div>
-
-                      {/* Status Badge */}
-                      <div className="flex items-center justify-between pt-2">
-                        {Math.abs(scene.confidence - Math.round((scene.upvotes / (scene.views || 1)) * 100)) <= 10 ? (
-                          <div className="w-full flex flex-col gap-1 bg-gradient-to-r from-emerald-50 to-teal-50/50 p-4 rounded-2xl border border-emerald-200 shadow-sm text-left">
-                            <span className="inline-flex items-center gap-1.5 text-xs font-extrabold text-emerald-600">
-                              🎯 シンクロ成功！ (誤差 {Math.abs(scene.confidence - Math.round((scene.upvotes / (scene.views || 1)) * 100))}%以内)
-                            </span>
-                            <p className="text-[10px] text-emerald-600/80">
-                              素晴らしい人間心理への洞察力です！人々の心のツボをぴったり予測できています。実績バッジの進捗にカウントされます。
-                            </p>
-                          </div>
-                        ) : (
-                          <div className="w-full flex flex-col gap-1 bg-orange-50 p-4 rounded-2xl border border-orange-100 text-orange-600 text-left">
-                            <span className="inline-flex items-center gap-1.5 text-xs font-extrabold">
-                              📊 予測誤差 {Math.abs(scene.confidence - Math.round((scene.upvotes / (scene.views || 1)) * 100))}%
-                            </span>
-                            <p className="text-[10px] text-orange-500/80">
-                              設定した予想共感度と実際の計測データに誤差があります。誤差10%以内をクリアすることで特別なバッジがもらえます！
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
-          </div>
-
-          <div className="space-y-6">
-            <h3 className="text-sm font-bold text-orange-900 flex items-center gap-2">
-              <MessageSquare className="w-4 h-4" />
-              {t("共感の声", "Echoes of Empathy")} <span className="bg-orange-50 text-orange-500 px-2 py-0.5 rounded-full text-[10px]">{comments.length}</span>
-            </h3>
-            
-            <div className="space-y-4">
-              {comments.map((comment) => {
-                const commentAuthor = profiles?.[comment.authorId];
-                const isCommentAnon = comment.authorName === '匿名ユーザー' || commentAuthor?.isAnonymous;
-                const commentAuthorName = isCommentAnon ? t('匿名ユーザー', 'Anonymous User') : comment.authorName;
-                const commentAuthorPhoto = isCommentAnon ? 'https://api.dicebear.com/7.x/bottts/svg?seed=anonymous' : comment.authorPhoto;
-                const commentAuthorTitle = isCommentAnon ? '' : (commentAuthor?.selectedTitle || '');
-
+          {/* Sent Stickers display inside DetailModal for the post itself */}
+          {liveScene.stickers && Object.keys(liveScene.stickers).length > 0 && (
+            <div className="flex flex-wrap gap-2 mt-4 bg-orange-50/30 p-2.5 rounded-2xl border border-orange-100/50">
+              {Object.entries(liveScene.stickers).map(([stickerId, uids]) => {
+                const sticker = STICKERS.find(s => s.id === stickerId);
+                if (!sticker) return null;
+                const stickerName = language === 'en' ? sticker.nameEn : sticker.name;
+                const uidsList = Array.isArray(uids) ? uids : [];
+                const hasUserReacted = user ? uidsList.includes(user.uid) : false;
                 return (
-                  <div key={comment.id} className="flex gap-3">
-                    <img src={commentAuthorPhoto} alt="" className="w-6 h-6 rounded-full grayscale opacity-60 flex-shrink-0 mt-1" />
-                    <div className="bg-orange-50 p-4 rounded-2xl rounded-tl-none flex-1">
-                      <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 justify-start mb-2 flex-wrap text-left">
-                        <div className="flex items-center justify-between flex-1 w-full sm:w-auto">
-                          <span className="text-[10px] font-bold text-orange-900">{commentAuthorName}</span>
-                          <span className="text-[9px] text-orange-200 sm:hidden">
-                            {comment.createdAt ? formatDistanceToNow(comment.createdAt.toDate(), { addSuffix: true, locale: language === 'ja' ? ja : undefined }) : '...'}
-                          </span>
-                        </div>
-                        {!isCommentAnon && commentAuthorTitle && (
-                          <RarityTitle 
-                            title={commentAuthorTitle} 
-                            equippedBadges={commentAuthor?.equippedBadges || []} 
-                            isProfileView={false} 
-                          />
-                        )}
-                        <span className="hidden sm:inline text-[9px] text-orange-200 ml-auto">
-                          {comment.createdAt ? formatDistanceToNow(comment.createdAt.toDate(), { addSuffix: true, locale: language === 'ja' ? ja : undefined }) : '...'}
-                        </span>
-                      </div>
-                      <p className="text-xs text-orange-805 leading-relaxed text-left">{comment.content}</p>
-                    </div>
-                  </div>
+                  <button
+                    key={stickerId}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onToggleSticker?.(liveScene.id, stickerId);
+                    }}
+                    className={cn(
+                      "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border transition-all active:scale-95 cursor-pointer",
+                      hasUserReacted
+                        ? "bg-orange-500/10 border-orange-500 text-orange-950 hover:bg-orange-500/20"
+                        : "bg-white border-orange-100 text-orange-600 hover:bg-orange-50"
+                    )}
+                    title={stickerName}
+                  >
+                    <img src={sticker.url} alt={stickerName} className="w-4 h-4 object-contain inline shrink-0" referrerPolicy="no-referrer" />
+                    <span className="text-[10px] sm:text-xs">{stickerName}</span>
+                    <span className="text-[9px] sm:text-xs text-orange-400 font-extrabold">×{uidsList.length}</span>
+                  </button>
                 );
               })}
             </div>
+          )}
+
+          <div className="mt-6 flex justify-end gap-2.5">
+            {/* Sticker addition button for the post */}
+            <div className="relative">
+              <button 
+                onClick={() => setShowPostStickerSelector(!showPostStickerSelector)}
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-orange-50 hover:bg-orange-100 text-orange-600 rounded-2xl text-xs font-bold transition-all active:scale-90 duration-100 cursor-pointer shadow-sm border border-orange-100 focus:outline-none animate-in fade-in"
+              >
+                <Smile className="w-4 h-4" />
+                <span>{t('ステッカー', 'Sticker')}</span>
+              </button>
+              {showPostStickerSelector && (
+                <div className="absolute right-0 bottom-10 z-50 animate-in fade-in zoom-in-95 duration-100" onClick={(e) => e.stopPropagation()}>
+                  <StickerSelector 
+                    onSelect={(stickerId) => {
+                      onToggleSticker?.(liveScene.id, stickerId);
+                      setShowPostStickerSelector(false);
+                    }}
+                    onClose={() => setShowPostStickerSelector(false)}
+                  />
+                </div>
+              )}
+            </div>
+
+            <button 
+              onClick={() => onCopy?.(liveScene)}
+              className="inline-flex items-center gap-1.5 px-4 py-2 bg-orange-50 hover:bg-orange-100 text-orange-600 rounded-2xl text-xs font-bold transition-all active:scale-90 duration-100 cursor-pointer shadow-sm border border-orange-100"
+            >
+              <span>📋</span>
+              <span>{t('コピー', 'Copy')}</span>
+            </button>
+          </div>
+
+          <div className="space-y-6 pt-4 border-t border-orange-50 text-center">
+            <p className="text-xs text-orange-400">
+              {t("地味っちは、コメント等で競い合うことなく、現象そのものを静かに共感・観測する場所です。", "Jimicchi is a space to quietly observe and empathize with phenomena without the clutter of competitive comments.")}
+            </p>
           </div>
         </div>
 
-        <div className="p-6 bg-orange-50/50 border-t border-orange-50">
-          {user ? (
-            <form onSubmit={postComment} className="relative">
-              <input 
-                type="text" 
-                placeholder={t("共感を伝えるコメントを書く...", "Write a comment of empathy...")}
-                value={newComment}
-                onChange={e => setNewComment(e.target.value)}
-                className="w-full bg-white border border-orange-100 rounded-2xl px-5 py-4 text-sm outline-none focus:ring-2 focus:ring-orange-500 transition-all pr-12"
-              />
-              <button 
-                type="submit" 
-                disabled={commentLoading || !newComment}
-                className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-orange-500 hover:text-orange-700 transition-colors disabled:opacity-30"
-              >
-                {commentLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
-              </button>
-            </form>
-          ) : (
-            <button onClick={onLogin} className="w-full bg-white border-2 border-orange-100 py-4 rounded-2xl text-xs font-bold text-orange-400 hover:bg-orange-50 transition-all">
-              ログインしてコメントを投稿する
-            </button>
-          )}
+        <div className="p-6 bg-orange-50/50 border-t border-orange-50 text-center text-xs text-orange-300">
+          {t("コメント機能は完全廃止されました。現象への共感は静かに行われます。", "Comments are deactivated. Empathy for phenomena is expressed in silence.")}
         </div>
       </motion.div>
     </div>
@@ -6164,17 +6032,6 @@ function ProfileView({
                   </div>
                 ) : (
                   <div className="flex gap-2">
-                    <button 
-                      onClick={handleFollowClick}
-                      disabled={followLoading}
-                      className={cn(
-                        "px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-sm disabled:opacity-50",
-                        isFollowing ? "bg-orange-100 text-orange-600 hover:bg-orange-200" : "bg-orange-500 text-white hover:bg-orange-600"
-                      )}
-                    >
-                      {followLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : isFollowing ? <UserMinus className="w-3 h-3" /> : <UserPlus className="w-3 h-3" />}
-                      {isFollowing ? t('フォロー解除', 'Unfollow') : t('フォロー', 'Follow')}
-                    </button>
                     {!(auth.currentUser?.isAnonymous || profile?.isAnonymous) && (
                       <button 
                         onClick={handleChatClick}
@@ -6264,22 +6121,7 @@ function ProfileView({
             )}
 
             
-            <div className="flex gap-4 mb-4 justify-center sm:justify-start">
-              <button 
-                onClick={() => openFollowsModal('following')}
-                className="text-center sm:text-left cursor-pointer hover:bg-orange-50/70 hover:scale-[1.03] active:scale-95 transition-all px-3.5 py-2 rounded-2xl border border-orange-100/50 flex items-center gap-1.5 focus:outline-none"
-              >
-                <span className="text-base font-bold text-orange-950">{followingCount}</span>
-                <span className="text-[10px] font-bold text-orange-400 uppercase tracking-widest">{t('フォロー中', 'Following')}</span>
-              </button>
-              <button 
-                onClick={() => openFollowsModal('followers')}
-                className="text-center sm:text-left cursor-pointer hover:bg-orange-50/70 hover:scale-[1.03] active:scale-95 transition-all px-3.5 py-2 rounded-2xl border border-orange-100/50 flex items-center gap-1.5 focus:outline-none"
-              >
-                <span className="text-base font-bold text-orange-950">{followerCount}</span>
-                <span className="text-[10px] font-bold text-orange-400 uppercase tracking-widest">{t('フォロワー', 'Followers')}</span>
-              </button>
-            </div>
+            {/* Follow indices retired for gentle offline feel */}
             
             {showMsgInput && (
               <div className="flex gap-2 animate-in fade-in slide-in-from-top-2">

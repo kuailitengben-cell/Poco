@@ -55,25 +55,37 @@ export default function KairanbanView({
   onBack,
   onProfileClick
 }: KairanbanViewProps) {
-  // Sort scenes dynamically using the custom Recommended Algorithm
+  // Sort scenes dynamically to rescue buried/quiet posts first ("埋もれた投稿の救済")
   const sortedScenes = useMemo(() => {
     return [...allScenes].sort((a, b) => {
       const aUpvotes = a.upvotes || 0;
-      const aKairan = (a as any).kairanAmount || 0;
-      const aSashiire = (a as any).sashiireCount || 0;
+      const aViews = a.views || 0;
       const aCreatedAt = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : Date.now();
       const aAgeHours = Math.max(0.1, (Date.now() - aCreatedAt) / (1000 * 60 * 60));
 
       const bUpvotes = b.upvotes || 0;
-      const bKairan = (b as any).kairanAmount || 0;
-      const bSashiire = (b as any).sashiireCount || 0;
+      const bViews = b.views || 0;
       const bCreatedAt = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : Date.now();
       const bAgeHours = Math.max(0.1, (Date.now() - bCreatedAt) / (1000 * 60 * 60));
 
-      // Scoring: Upvotes, Circulations, Refreshments, and Decaying Freshness
-      const aScore = (aUpvotes * 2.0) + (aKairan * 1.2) + (aSashiire * 15) + (100 / Math.pow(aAgeHours, 0.45));
-      const bScore = (bUpvotes * 2.0) + (bKairan * 1.2) + (bSashiire * 15) + (100 / Math.pow(bAgeHours, 0.45));
-      return bScore - aScore;
+      // Scoring formulas:
+      // - Freshness boost so brand-new posts enter the loop nicely.
+      // - Strict penalty for popular (high upvote/high view) posts to avoid viral bubbles.
+      // - Massive bonus for extremely quiet/under-seen gems (upvotes < 5 gets a major boost).
+      const aFreshnessBoost = 200 / Math.pow(aAgeHours, 0.4);
+      const aRescueBonus = aUpvotes < 5 ? 150 : 0;
+      const aUpvotePenalty = aUpvotes * 4.0;
+      const aViewPenalty = aViews * 1.5;
+
+      const bFreshnessBoost = 200 / Math.pow(bAgeHours, 0.4);
+      const bRescueBonus = bUpvotes < 5 ? 150 : 0;
+      const bUpvotePenalty = bUpvotes * 4.0;
+      const bViewPenalty = bViews * 1.5;
+
+      const aScore = aFreshnessBoost + aRescueBonus - (aUpvotePenalty + aViewPenalty);
+      const bScore = bFreshnessBoost + bRescueBonus - (bUpvotePenalty + bViewPenalty);
+
+      return bScore - aScore; // highest rescue priority on top
     });
   }, [allScenes]);
 
@@ -614,7 +626,7 @@ export default function KairanbanView({
                 scale: { type: 'spring', stiffness: 220, damping: 24 },
                 rotate: { type: 'tween', duration: 0.3 }
               }}
-              className={`relative z-20 w-full max-w-[340px] h-[38vh] xs:h-[42vh] sm:h-[45vh] max-h-[380px] rounded-[24px] shadow-2xl flex flex-col p-4 sm:p-5 select-text cursor-grab active:cursor-grabbing border ${
+              className={`relative z-20 w-full max-w-[465px] h-[58vh] xs:h-[62vh] sm:h-[65vh] max-h-[600px] min-h-[490px] rounded-[32px] shadow-2xl flex flex-col p-5 sm:p-6 select-text cursor-grab active:cursor-grabbing border ${
                 isYellowed 
                   ? 'bg-gradient-to-b from-[#f5ebd2] to-[#eedec0] text-amber-950 border-[#dfcaa1]' 
                   : 'bg-gradient-to-b from-[#faf9f6] to-[#f4f1ea] text-stone-900 border-stone-200/50'
@@ -711,6 +723,20 @@ export default function KairanbanView({
                 <FossilChipStation scene={currentScene} currentUserProfile={profile} onChipped={() => {}} />
               </div>
 
+              {/* Quiet Sympathy Embedded Action button inside the card */}
+              <div className="mt-4 shrink-0 pointer-events-auto">
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleLike();
+                  }}
+                  className="w-full py-4 px-5 rounded-2xl bg-rose-500 hover:bg-rose-600 active:scale-[96%] text-white font-extrabold text-sm flex items-center justify-center gap-2.5 shadow-lg shadow-rose-500/10 hover:shadow-rose-400/25 transition-all duration-150 cursor-pointer select-none border-none animate-in fade-in zoom-in-95"
+                >
+                  <Heart className="w-5 h-5 fill-current animate-pulse-subtle" />
+                  <span>地味に共感！ <span className="font-mono text-xs bg-white/20 px-2 py-0.5 rounded-full ml-1 font-bold">{currentScene.upvotes || 0}</span></span>
+                </button>
+              </div>
+
               {/* Inline display showing circulating volume */}
               <div className="mt-4 pt-3 border-t border-dotted border-stone-900/10 flex items-center justify-between text-[11px] font-bold text-stone-600 font-mono">
                 <div className="flex items-center gap-1">
@@ -765,23 +791,11 @@ export default function KairanbanView({
 
       {/* Fullscreen Interactive Action footer HUD */}
       {currentScene && (
-        <div className="relative z-10 w-full max-w-lg mx-auto bg-gradient-to-t from-[#241712] via-[#2d1b13] to-transparent py-3 px-4 flex flex-col gap-2.5 shrink-0">
+        <div className="relative z-10 w-full max-w-lg mx-auto bg-gradient-to-t from-[#241712] via-[#2d1b13] to-transparent py-4 px-5 flex flex-col gap-3 shrink-0">
           
-          <div className="flex items-center justify-around gap-2 px-2">
+          <div className="flex items-center justify-around gap-3 px-1">
             
-            {/* 1. 共感 Button */}
-            <button 
-              onClick={handleLike}
-              className="flex-1 flex flex-col items-center gap-1 bg-orange-950/60 hover:bg-orange-950/80 border border-orange-900/30 text-xs font-bold text-orange-100 py-2.5 rounded-2xl active:scale-95 transition cursor-pointer"
-            >
-              <Heart className="w-5 h-5 text-red-500 fill-red-500" />
-              <div className="flex items-baseline gap-1">
-                <span>共感</span>
-                <span className="font-mono text-[10px] text-orange-400">{currentScene.upvotes}</span>
-              </div>
-            </button>
-
-            {/* 2. 回覧板に回す Button */}
+            {/* 1. 回覧板に回す Button */}
             <button 
               onClick={() => {
                 if (isLocked) {
@@ -790,42 +804,24 @@ export default function KairanbanView({
                 }
                 setShowKairanModal(true);
               }}
-              className="flex-1 flex flex-col items-center gap-1 bg-orange-950/60 hover:bg-orange-950/80 border border-orange-900/30 text-xs font-bold text-orange-100 py-2.5 rounded-2xl active:scale-95 transition cursor-pointer"
+              className="flex-1 flex flex-col items-center justify-center gap-1.5 bg-[#45281b]/70 hover:bg-[#543222] border border-orange-950/40 text-xs font-extrabold text-orange-100 py-3 rounded-2xl active:scale-95 transition cursor-pointer shadow-md"
             >
-              <Pin className="w-5 h-5 text-amber-500" />
+              <Pin className="w-5 h-5 text-amber-500 animate-bounce-slow" />
               <div className="flex flex-col items-center leading-none">
-                <span className="mb-0.5">回覧板に回す</span>
-                <span className="text-[8px] text-orange-400 font-mono">📌 1ユーザー1回</span>
+                <span className="mb-0.5 text-orange-50 font-black">回覧板に回す</span>
+                <span className="text-[8.5px] text-orange-300 font-mono">📌 1ユーザー1回 (J)</span>
               </div>
             </button>
 
-            {/* 3. 差し入れ Button */}
+            {/* 2. 差し入れ Button */}
             <button 
               onClick={handleSashiire}
-              className="flex-1 flex flex-col items-center gap-1 bg-orange-[#241712]/60 hover:bg-[#2d1b13] border border-orange-900/30 text-xs font-bold text-orange-100 py-2.5 rounded-2xl active:scale-95 transition cursor-pointer"
+              className="flex-1 flex flex-col items-center justify-center gap-1.5 bg-[#45281b]/70 hover:bg-[#543222] border border-orange-950/40 text-xs font-extrabold text-orange-100 py-3 rounded-2xl active:scale-95 transition cursor-pointer shadow-md"
             >
-              <Coffee className="w-5 h-5 text-amber-700" />
-              <div className="flex items-baseline gap-1">
-                <span>差し入れ</span>
-                <span className="font-mono text-[10px] text-orange-400">{(currentScene as any).sashiireCount || 0}</span>
-              </div>
-            </button>
-
-            {/* 4. コメント Button */}
-            <button 
-              onClick={() => {
-                if (isLocked) {
-                  alert('この地味話は現在、石化して化石になっています。「発掘調査」を行って石化を解いた後で、コメントの記述・閲覧が可能です！');
-                  return;
-                }
-                setShowComments(true);
-              }}
-              className="flex-1 flex flex-col items-center gap-1 bg-orange-950/60 hover:bg-orange-950/80 border border-orange-900/30 text-xs font-bold text-orange-100 py-2.5 rounded-2xl active:scale-95 transition cursor-pointer relative"
-            >
-              <MessageSquare className="w-5 h-5 text-cyan-400" />
-              <div className="flex items-baseline gap-1">
-                <span>コメント</span>
-                <span className="font-mono text-[10px] text-orange-400">{currentScene.commentCount || 0}</span>
+              <Coffee className="w-5 h-5 text-amber-600" />
+              <div className="flex flex-col items-center leading-none">
+                <span className="mb-0.5 text-orange-50 font-black">差し入れする</span>
+                <span className="text-[8.5px] text-orange-300 font-mono">☕ 5 J-Coins</span>
               </div>
             </button>
 
@@ -981,103 +977,7 @@ export default function KairanbanView({
         )}
       </AnimatePresence>
 
-      {/* COMMENTS DRAWER / SIDEBAR (💬 コメント一覧) */}
-      <AnimatePresence>
-        {showComments && currentScene && (
-          <div className="fixed inset-0 z-50 flex justify-end">
-            {/* Backdrop */}
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowComments(false)}
-              className="absolute inset-0 bg-black/60"
-            />
-
-            {/* Panel */}
-            <motion.div 
-              initial={{ x: '100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: '100%' }}
-              transition={{ type: 'tween', duration: 0.3 }}
-              className="relative w-full max-w-sm h-full bg-[#1c110b] border-l border-orange-950/60 shadow-2xl z-10 flex flex-col text-orange-100"
-            >
-              
-              {/* Drawer Header */}
-              <div className="p-4.5 border-b border-orange-950/60 flex items-center justify-between bg-[#241712]">
-                <div className="flex items-center gap-2">
-                  <MessageSquare className="w-5 h-5 text-cyan-400" />
-                  <span className="font-black text-sm text-orange-50">地味コメント ({commentsList.length})</span>
-                </div>
-                <button 
-                  onClick={() => setShowComments(false)}
-                  className="p-1 rounded-full text-orange-400 hover:text-white transition hover:bg-orange-950"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              {/* Comments Feed */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar">
-                {commentsList.length === 0 ? (
-                  <div className="text-center py-12 text-xs text-orange-400/50">
-                    最初の優しい共感コメントを書いてみませんか？☕️
-                  </div>
-                ) : (
-                  commentsList.map((comment) => (
-                    <div key={comment.id} className="bg-[#241712]/50 p-4 rounded-2xl border border-orange-950/40 relative">
-                      <div className="flex items-center gap-2 mb-2">
-                        <img 
-                          src={comment.authorPhoto} 
-                          alt={comment.authorName} 
-                          onClick={() => {
-                            setShowComments(false);
-                            onProfileClick(comment.authorId);
-                          }}
-                          className="w-7 h-7 rounded-full cursor-pointer object-cover"
-                          referrerPolicy="no-referrer"
-                        />
-                        <span 
-                          onClick={() => {
-                            setShowComments(false);
-                            onProfileClick(comment.authorId);
-                          }}
-                          className="text-xs font-bold truncate hover:underline cursor-pointer"
-                        >
-                          {comment.authorName}
-                        </span>
-                        <span className="text-[8px] text-orange-400/30 ml-auto font-mono">
-                          {comment.createdAt?.toDate ? comment.createdAt.toDate().toLocaleDateString() : 'Just now'}
-                        </span>
-                      </div>
-                      <p className="text-xs text-orange-200 whitespace-pre-wrap leading-relaxed">{comment.content}</p>
-                    </div>
-                  ))
-                )}
-              </div>
-
-              {/* Drawer Input */}
-              <form onSubmit={handleAddComment} className="p-4 bg-[#241712] border-t border-orange-950/60 flex items-center gap-2">
-                <input
-                  type="text"
-                  placeholder="共感コメントを送信..."
-                  value={newCommentText}
-                  onChange={(e) => setNewCommentText(e.target.value)}
-                  className="flex-1 bg-[#150a04] border border-orange-950/70 text-orange-100 rounded-full py-2.5 px-4 text-xs font-bold placeholder-orange-500/50 focus:outline-hidden"
-                />
-                <button 
-                  type="submit" 
-                  disabled={isSubmittingComment || !newCommentText.trim()}
-                  className="w-9 h-9 rounded-full bg-cyan-600 hover:bg-cyan-500 text-white flex items-center justify-center transition active:scale-95 disabled:opacity-50"
-                >
-                  <Send className="w-4 h-4" />
-                </button>
-              </form>
-
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      {/* COMMENTS DRAWER / SIDEBAR HAS BEEN RETIRED FOR COHERENCE */}
 
       {/* REPORT SUBMISSION MODAL (通報) */}
       <AnimatePresence>
