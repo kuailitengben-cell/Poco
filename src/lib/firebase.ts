@@ -10,7 +10,19 @@ import {
   signInAnonymously
 } from 'firebase/auth';
 import { initializeFirestore, memoryLocalCache } from 'firebase/firestore';
-import firebaseConfig from '../../firebase-applet-config.json';
+import firebaseConfigDefault from '../../firebase-applet-config.json';
+
+const env = (import.meta as any).env || {};
+
+const firebaseConfig = {
+  apiKey: env.VITE_FIREBASE_API_KEY || firebaseConfigDefault.apiKey,
+  authDomain: env.VITE_FIREBASE_AUTH_DOMAIN || firebaseConfigDefault.authDomain,
+  projectId: env.VITE_FIREBASE_PROJECT_ID || firebaseConfigDefault.projectId,
+  storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET || firebaseConfigDefault.storageBucket,
+  messagingSenderId: env.VITE_FIREBASE_MESSAGING_SENDER_ID || firebaseConfigDefault.messagingSenderId,
+  appId: env.VITE_FIREBASE_APP_ID || firebaseConfigDefault.appId,
+  firestoreDatabaseId: env.VITE_FIREBASE_FIRESTORE_DATABASE_ID || firebaseConfigDefault.firestoreDatabaseId,
+};
 
 const app = initializeApp(firebaseConfig);
 export const db = initializeFirestore(app, {

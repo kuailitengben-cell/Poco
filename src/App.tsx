@@ -9865,7 +9865,6 @@ function AdminMessagesModal({ messages, onClose }: { messages: AdminMessage[], o
   const [permissionStatus, setPermissionStatus] = useState<NotificationPermission>('default');
 
   useEffect(() => {
-    // Mark as read when opened
     messages.forEach(msg => {
       if (!msg.read) {
         updateDoc(doc(db, 'admin_messages', msg.id), { read: true });
@@ -9924,7 +9923,7 @@ function AdminMessagesModal({ messages, onClose }: { messages: AdminMessage[], o
             <Bell className="w-5 h-5" />
             お知らせ
           </h2>
-          <button onClick={onClose} className="p-2 hover:bg-orange-50 rounded-full"><X className="w-5 h-5 text-orange-300" /></button>
+          <button onClick={onClose} className="p-2 hover:bg-orange-50 rounded-full"><X className="w-5 h-5 text-orange-400" /></button>
         </div>
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
           {permissionStatus === 'default' && (
