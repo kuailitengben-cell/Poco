@@ -216,7 +216,7 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
     return; // Return gracefully instead of raising a fatal app exception!
   }
 
-  throw new Error(JSON.stringify(errInfo));
+  console.warn('Recoverable non-blocking Firestore Exception:', errMsg);
 }
 
 export default function App() {
@@ -4676,7 +4676,7 @@ function SubmitModal({
         imageUrl: imageUrl || null,
         authorId: user.uid,
         authorName: isAnonymousPost ? '匿名ユーザー' : (profileData?.displayName || user.displayName || '名無しさん'),
-        authorPhoto: isAnonymousPost ? 'https://api.dicebear.com/7.x/bottts/svg?seed=anonymous' : (profileData?.photoURL || user.photoURL),
+        authorPhoto: isAnonymousPost ? 'https://api.dicebear.com/7.x/bottts/svg?seed=anonymous' : (profileData?.photoURL || user.photoURL || null),
         isAnonymousPost: !!isAnonymousPost,
         createdAt: serverTimestamp(),
         upvotes: 0,

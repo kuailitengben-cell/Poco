@@ -68,7 +68,7 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
     path
   };
   console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
+  console.warn('Recoverable non-blocking Firestore Exception:', errMsg);
 }
 
 // Language helper (mock fallback or prop)
