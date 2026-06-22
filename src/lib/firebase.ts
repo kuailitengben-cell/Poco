@@ -25,10 +25,21 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-export const db = initializeFirestore(app, {
-  experimentalForceLongPolling: true,
-  localCache: memoryLocalCache(),
-}, firebaseConfig.firestoreDatabaseId); 
+
+const databaseId = firebaseConfig.firestoreDatabaseId && firebaseConfig.firestoreDatabaseId !== '(default)'
+  ? firebaseConfig.firestoreDatabaseId 
+  : undefined;
+
+export const db = databaseId 
+  ? initializeFirestore(app, {
+      experimentalForceLongPolling: true,
+      localCache: memoryLocalCache(),
+    }, databaseId)
+  : initializeFirestore(app, {
+      experimentalForceLongPolling: true,
+      localCache: memoryLocalCache(),
+    });
+
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 

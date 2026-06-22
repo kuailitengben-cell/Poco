@@ -235,6 +235,32 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
+    match /kaiwais/{kaiwaiId} {
+      allow read, list: if true;
+      allow create: if isAdmin() || (isSignedIn() && !isBanned());
+      allow update: if isAdmin() || (isSignedIn() && !isBanned());
+      allow delete: if isAdmin();
+    }
+
+    match /kaiwai_requests/{requestId} {
+      allow read, list: if true;
+      allow create: if isSignedIn() && !isBanned() && request.resource.data.creatorId == request.auth.uid;
+      allow update: if isAdmin() || (isSignedIn() && !isBanned() && resource.data.creatorId == request.auth.uid);
+      allow delete: if isAdmin();
+    }
+
+    match /kaiwai_request_logs/{logId} {
+      allow read, list: if isAdmin();
+      allow create: if isAdmin();
+      allow update, delete: if isAdmin();
+    }
+
+    match /kaiwai_follows/{followId} {
+      allow read, list: if true;
+      allow create: if isSignedIn() && !isBanned() && request.resource.data.userId == request.auth.uid;
+      allow delete: if isSignedIn() && !isBanned() && resource.data.userId == request.auth.uid;
+    }
+
     match /test/connection {
       allow get: if true;
     }

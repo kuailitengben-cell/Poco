@@ -39,6 +39,7 @@ import { FossilizedContent, FossilOverlay } from './components/FossilizedContent
 import FossilChipStation from './components/FossilChipStation';
 import JimiPlazaView from './components/JimiPlazaView';
 import { JseView } from './components/JseView';
+import KaiwaiView from './components/KaiwaiView';
 import KairanbanView from './components/KairanbanView';
 import TermsView from './components/TermsView';
 import PrivacyView from './components/PrivacyView';
@@ -314,25 +315,27 @@ export default function App() {
     }
   };
   const [aiLoading, setAiLoading] = useState(false);
-  const [view, setView] = useState<'feed' | 'profile' | 'plaza' | 'terms' | 'privacy' | 'guidelines' | 'about' | 'jse'>(() => {
+  const [view, setView] = useState<'feed' | 'profile' | 'plaza' | 'terms' | 'privacy' | 'guidelines' | 'about' | 'jse' | 'kaiwai'>(() => {
     const path = window.location.pathname;
     if (path === '/terms') return 'terms';
     if (path === '/privacy') return 'privacy';
     if (path === '/guidelines') return 'guidelines';
     if (path === '/plaza') return 'plaza';
     if (path === '/jse') return 'jse';
+    if (path === '/kaiwai') return 'kaiwai';
     if (path === '/about' || path === '/welcome' || path === '/landing') return 'about';
     if (path === '/profile' || path.startsWith('/profile')) return 'profile';
     return 'feed';
   });
 
-  const handleViewChange = (newView: 'feed' | 'profile' | 'plaza' | 'terms' | 'privacy' | 'guidelines' | 'about' | 'jse', profileId?: string | null) => {
+  const handleViewChange = (newView: 'feed' | 'profile' | 'plaza' | 'terms' | 'privacy' | 'guidelines' | 'about' | 'jse' | 'kaiwai', profileId?: string | null) => {
     let path = '/';
     if (newView === 'terms') path = '/terms';
     else if (newView === 'privacy') path = '/privacy';
     else if (newView === 'guidelines') path = '/guidelines';
     else if (newView === 'plaza') path = '/plaza';
     else if (newView === 'jse') path = '/jse';
+    else if (newView === 'kaiwai') path = '/kaiwai';
     else if (newView === 'about') path = '/about';
     else if (newView === 'profile') {
       path = profileId ? `/profile?uid=${profileId}` : '/profile';
@@ -1160,11 +1163,22 @@ export default function App() {
     });
 
     const testConnection = async () => {
-      try {
-        await getDocFromServer(doc(db, 'test', 'connection'));
-      } catch (error) {
-        if(error instanceof Error && error.message.includes('the client is offline')) {
-          console.error("Please check your Firebase configuration.");
+      let attempts = 3;
+      while (attempts > 0) {
+        try {
+          await getDocFromServer(doc(db, 'test', 'connection'));
+          return;
+        } catch (error) {
+          attempts--;
+          if (attempts > 0) {
+            await new Promise((resolve) => setTimeout(resolve, 1500));
+          } else {
+            if (error instanceof Error && error.message.includes('the client is offline')) {
+              console.error("Please check your Firebase configuration. Server is unreachable or browser is offline.");
+            } else {
+              console.warn("Firebase test connection other error:", error);
+            }
+          }
         }
       }
     };
@@ -2864,6 +2878,18 @@ export default function App() {
             <span className="text-sm font-bold flex items-center gap-1 px-1">📈 {t("地味株 (JSE)", "Stocks")}</span>
           </button>
 
+          <button 
+            id="btn-desktop-kaiwai"
+            onClick={() => { setView('kaiwai'); setShowRanking(false); }}
+            className={cn(
+              "p-2 rounded-full border flex items-center justify-center transition-all hover:scale-105 active:scale-95 cursor-pointer",
+              view === 'kaiwai' ? "bg-orange-950 border-orange-950 text-white animate-pulse-subtle" : "text-[#b45309] border-orange-50 bg-white hover:bg-orange-50"
+            )}
+            title="現象界隈 (Phenomenon Areas)"
+          >
+            <span className="text-sm font-bold flex items-center gap-1 px-1">🪐 {t("現象界隈", "Kaiwai")}</span>
+          </button>
+
           {user ? (
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-1 mr-2 bg-orange-50 rounded-full px-2 py-1">
@@ -3027,6 +3053,20 @@ export default function App() {
             onBack={() => handleViewChange('feed')}
             onGachaStateChange={() => setGachaRevision(prev => prev + 1)}
             allScenes={allScenes}
+          />
+        ) : view === 'kaiwai' ? (
+          <KaiwaiView 
+            user={user}
+            profile={userProfile}
+            onBack={() => handleViewChange('feed')}
+            isAdmin={isAdmin}
+            onOpenScene={(scene) => {
+              setSelectedScene(scene);
+              window.history.pushState({}, '', `/post/${scene.id}`);
+            }}
+            onOpenProfile={(uid) => {
+              handleOpenProfile(uid);
+            }}
           />
         ) : view === 'terms' ? (
           <TermsView onBack={() => handleViewChange('feed')} isAdmin={isAdmin} />
@@ -3511,6 +3551,23 @@ export default function App() {
                         <div>
                           <span className="text-xs font-black block text-orange-950">{t("地味っち株式市場 (JSE)", "Stock Exchange (JSE)")}</span>
                           <span className="text-[10px] text-orange-400 font-medium">{t("現象そのものに投資する株式市場", "Invest in phenomena directly")}</span>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-orange-300 group-hover:translate-x-0.5 transition-transform" />
+                    </button>
+
+                    {/* Phenomenon Kaiwai */}
+                    <button 
+                      onClick={() => { setView('kaiwai'); setShowRanking(false); setShowMobileMenu(false); }}
+                      className="w-full flex items-center justify-between p-3 rounded-2xl hover:bg-orange-50/60 text-left transition text-orange-900 group cursor-pointer"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-amber-50 rounded-xl text-amber-600 group-hover:bg-amber-100 transition">
+                          <span className="text-base leading-none">🪐</span>
+                        </div>
+                        <div>
+                          <span className="text-xs font-black block text-orange-950">{t("現象界隈 (カテゴリ)", "Phenomenon Area (Kaiwai)")}</span>
+                          <span className="text-[10px] text-orange-400 font-medium">{t("フォローした界隈の類似現象を静かに観測", "Quietly observe localized mundane phenomena")}</span>
                         </div>
                       </div>
                       <ChevronRight className="w-4 h-4 text-orange-300 group-hover:translate-x-0.5 transition-transform" />
@@ -4406,6 +4463,16 @@ const SceneCard: React.FC<{
         </div>
       )}
 
+      {scene.observationTags && scene.observationTags.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mb-3">
+          {scene.observationTags.map(tag => (
+            <span key={tag} className="text-[9.5px] font-black text-orange-950 bg-amber-100 border border-amber-200 px-3 py-1 rounded-full select-none flex items-center gap-1">
+              🪐 {tag}界隈
+            </span>
+          ))}
+        </div>
+      )}
+
       {scene.hashtags && scene.hashtags.length > 0 && (
         <div className="flex flex-wrap gap-2 mb-4">
           {scene.hashtags.map(tag => (
@@ -4493,6 +4560,58 @@ function SubmitModal({
   const [isAnonymousPost, setIsAnonymousPost] = useState(user?.isAnonymous || false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
+  const [availableKaiwais, setAvailableKaiwais] = useState<any[]>([]);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [tagAiLoading, setTagAiLoading] = useState(false);
+  const [tagError, setTagError] = useState('');
+
+  // Fetch approved Kaiwais to use as possible Observation Tags
+  useEffect(() => {
+    const q = query(collection(db, 'kaiwais'), where('status', '==', 'approved'));
+    getDocs(q).then((snap) => {
+      const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setAvailableKaiwais(list);
+    }).catch((err) => {
+      console.error("Failed to fetch available kaiwais for SubmitModal tags:", err);
+    });
+  }, []);
+
+  const handleAiTagSuggest = async () => {
+    if (!title || !content) {
+      alert("AIタグ提案を利用するには、まずタイトルと詳しい内容を入力してください。");
+      return;
+    }
+    setTagAiLoading(true);
+    setTagError('');
+    try {
+      const tagNames = availableKaiwais.map(k => k.name);
+      if (tagNames.length === 0) {
+        alert("✨ まだ承認済みの現象界隈がありません。運営が新しい界隈を登録するまでお待ちください。");
+        return;
+      }
+      const res = await fetch('/api/suggest-tags', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title,
+          content,
+          availableTags: tagNames
+        })
+      });
+      const data = await res.json();
+      if (data.suggestions && data.suggestions.length > 0) {
+        setSelectedTags(data.suggestions);
+        alert(`✨ AIが最適な観測タグを提案し、選択しました！\n提案タグ: ${data.suggestions.join(", ")}`);
+      } else {
+        alert("✨ AIは適切な観測タグを見つけられませんでした。手動でお選びください。");
+      }
+    } catch (err) {
+      console.error("AI tags suggest error:", err);
+    } finally {
+      setTagAiLoading(false);
+    }
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -4539,6 +4658,11 @@ function SubmitModal({
     e.preventDefault();
     if (!user || !title || !content) return;
 
+    if (availableKaiwais.length > 0 && (selectedTags.length < 1 || selectedTags.length > 3)) {
+      setTagError("観測タグ（現象カテゴリ）は、1〜3個選択してください。");
+      return;
+    }
+
     try {
       const profileRef = doc(db, 'profiles', user.uid);
       const profileSnap = await getDoc(profileRef);
@@ -4559,7 +4683,8 @@ function SubmitModal({
         category,
         hashtags,
         confidence: Number(confidence),
-        views: 0
+        views: 0,
+        observationTags: selectedTags
       });
       if (!user.isAnonymous) {
         earnFromPost(user.uid);
@@ -4724,6 +4849,66 @@ function SubmitModal({
                 })}
               </div>
             </div>
+
+            {availableKaiwais.length > 0 && (
+              <div className="bg-orange-50/40 p-5 rounded-3xl border border-orange-100/60 space-y-4">
+                <div className="flex justify-between items-center">
+                  <label className="block text-[10px] font-bold text-orange-950 uppercase tracking-widest">
+                    🪐 観測タグの選択 (必須・1〜3個)
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleAiTagSuggest}
+                    disabled={tagAiLoading || !title || !content}
+                    className="text-[10px] font-extrabold bg-orange-100 hover:bg-orange-200 text-orange-850 px-3 py-1 rounded-full flex items-center gap-1 transition-all disabled:opacity-40 cursor-pointer"
+                    title="タイトルと本文から自動選択"
+                  >
+                    {tagAiLoading ? "AI分析中..." : "🪄 AIタグ提案"}
+                  </button>
+                </div>
+                <p className="text-[10px] text-orange-400">
+                  この投稿が属する現象カテゴリ（界隈）を選択します。類似する現象が集まることで、より深い観測が可能になります。
+                </p>
+
+                <div className="flex flex-wrap gap-2">
+                  {availableKaiwais.map((kaiwai) => {
+                    const isSelected = selectedTags.includes(kaiwai.name);
+                    return (
+                      <button
+                        key={kaiwai.id}
+                        type="button"
+                        onClick={() => {
+                          setTagError('');
+                          if (isSelected) {
+                            setSelectedTags(prev => prev.filter(t => t !== kaiwai.name));
+                          } else {
+                            if (selectedTags.length >= 3) {
+                              setTagError("観測タグは最大3個までしか選択できません。");
+                              return;
+                            }
+                            setSelectedTags(prev => [...prev, kaiwai.name]);
+                          }
+                        }}
+                        className={cn(
+                          "px-3.5 py-1.5 rounded-full text-xs font-bold transition-all border cursor-pointer select-none",
+                          isSelected
+                            ? "bg-orange-950 border-orange-950 text-white shadow-sm"
+                            : "bg-white border-orange-100 text-orange-950 hover:bg-orange-50"
+                        )}
+                      >
+                        #{kaiwai.name}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {tagError && (
+                  <p className="text-[10.5px] text-red-505 font-bold bg-red-50 p-2.5 rounded-2xl border border-red-100">
+                    ⚠️ {tagError}
+                  </p>
+                )}
+              </div>
+            )}
 
             <div>
               <label className="block text-[10px] font-bold text-orange-400 uppercase tracking-widest mb-1 flex justify-between">
@@ -5278,6 +5463,16 @@ function DetailModal({
             {scene.imageUrl && (
               <div className="mb-6 rounded-[32px] overflow-hidden bg-orange-50 border border-orange-100">
                 <img src={scene.imageUrl} alt={scene.title} className="w-full h-auto" />
+              </div>
+            )}
+
+            {scene.observationTags && scene.observationTags.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-5">
+                {scene.observationTags.map(tag => (
+                  <span key={tag} className="text-[10px] font-black text-orange-950 bg-amber-100 border border-amber-200 px-3 py-1 rounded-full select-none flex items-center gap-1">
+                    🪐 {tag}界隈
+                  </span>
+                ))}
               </div>
             )}
 
@@ -6560,7 +6755,7 @@ function AdminPanel({
   triggerBotSimulation: (botId?: string) => Promise<void>
 }) {
   const { language, t } = useLanguage();
-  const [tab, setTab] = useState<'reports' | 'announcement' | 'stats' | 'campaigns' | 'admins' | 'ranking_rewards' | 'gift_codes' | 'bot_sim' | 'jse_creations'>('reports');
+  const [tab, setTab] = useState<'reports' | 'announcement' | 'stats' | 'campaigns' | 'admins' | 'ranking_rewards' | 'gift_codes' | 'bot_sim' | 'jse_creations' | 'kaiwai_requests'>('reports');
 
   // Admin Gift Code management states
   const [adminGiftCodes, setAdminGiftCodes] = useState<any[]>([]);
@@ -6575,6 +6770,10 @@ function AdminPanel({
   // JSE Creations state and handlers
   const [jseRequests, setJseRequests] = useState<any[]>([]);
 
+  // Kaiwai Requests
+  const [kaiwaiRequests, setKaiwaiRequests] = useState<any[]>([]);
+  const [kaiwaiRequestLogs, setKaiwaiRequestLogs] = useState<any[]>([]);
+
   // Load creations
   useEffect(() => {
     if (tab !== 'jse_creations') return;
@@ -6586,6 +6785,32 @@ function AdminPanel({
       console.error("Failed to load JSE creation requests under admin:", err);
     });
     return () => unsub();
+  }, [tab]);
+
+  // Load kaiwai requests & logs
+  useEffect(() => {
+    if (tab !== 'kaiwai_requests') return;
+    const q = query(collection(db, 'kaiwai_requests'), orderBy('createdAt', 'desc'));
+    const unsub = onSnapshot(q, (snap) => {
+      const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setKaiwaiRequests(list);
+    }, (err) => {
+      console.error("Failed to load Kaiwai creation requests under admin:", err);
+    });
+
+    // Load detailed processing activity logs
+    const qLogs = query(collection(db, 'kaiwai_request_logs'), orderBy('processedAt', 'desc'), limit(50));
+    const unsubLogs = onSnapshot(qLogs, (snap) => {
+      const logList = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setKaiwaiRequestLogs(logList);
+    }, (err) => {
+      console.error("Failed to load Kaiwai request logs:", err);
+    });
+
+    return () => {
+      unsub();
+      unsubLogs();
+    };
   }, [tab]);
 
   const handleApproveJseRequest = async (request: any) => {
@@ -6695,6 +6920,109 @@ function AdminPanel({
       alert(`⚠️ 申請を却下し、創設者に ${request.coinsSpent} コインを払い戻しました。`);
     } catch (err: any) {
       console.error("Failed to reject JSE request:", err);
+      alert('⚠️ 却下処理に失敗しました: ' + err.message);
+    }
+  };
+
+  const handleApproveKaiwaiRequest = async (request: any) => {
+    try {
+      const confirmApprove = window.confirm(`本当に「${request.name}」界隈の作成を承認しますか？`);
+      if (!confirmApprove) return;
+
+      const adminComment = window.prompt(`「${request.name}」界隈への承認コメントを入力してください（空欄の場合は標準コメント）：`) || '';
+      const finalComment = adminComment.trim() || '日常の地味で深遠な現象を観測・共有するための新しい現象界隈として非常にふさわしい内容と判断し、正式に承認されました！';
+
+      // 1. Create the approved Kaiwai
+      await addDoc(collection(db, 'kaiwais'), {
+        name: request.name,
+        description: request.description,
+        creatorId: request.creatorId,
+        creatorName: request.creatorName,
+        status: 'approved',
+        createdAt: serverTimestamp()
+      });
+
+      // 2. Update request status
+      await updateDoc(doc(db, 'kaiwai_requests', request.id), {
+        status: 'approved',
+        rejectionReason: '',
+        adminComment: finalComment
+      });
+
+      // 3. Send enhanced notification message enclosing the original creation reason/description and the admin comments.
+      const content = `🎉 【現象界隈 創設承認のお知らせ】\n\nあなたが提案した新しい現象界隈「${request.name}」が、運営の厳正なる審査の結果【承認】されました。システム全体に反映され、すべての人々が投稿時にこの界隈を観測タグとして選択・閲覧できるようになりました！\n\n【提案した界隈カテゴリ】\n${request.name}界隈\n\n【申請時の説明・創設理由】\n${request.description || '（なし）'}\n\n【運営からの評価・コメント】\n${finalComment}\n\n地味な日常にスポットライトを当て、みんなで新しい共感の輪を広げていきましょう。さっそく最初の観測投稿をしてみましょう！🛸`;
+
+      await addDoc(collection(db, 'admin_messages'), {
+        recipientId: request.creatorId,
+        senderId: 'admin_root',
+        content: content,
+        createdAt: serverTimestamp(),
+        read: false,
+        type: 'system'
+      });
+
+      // 4. Auto-generate detailed audit log
+      await addDoc(collection(db, 'kaiwai_request_logs'), {
+        requestId: request.id,
+        kaiwaiName: request.name,
+        description: request.description || '',
+        creatorId: request.creatorId,
+        creatorName: request.creatorName,
+        creatorPostsCount: request.creatorPostsCount || 0,
+        status: 'approved',
+        adminComment: finalComment,
+        processedAt: serverTimestamp(),
+        processedBy: auth.currentUser?.email || auth.currentUser?.uid || 'admin_user'
+      });
+
+      alert(`✅ 「${request.name}」界隈を承認し、申請理由を含んだ詳細な承認メッセージの送信、および監査ログの自動生成が完了しました！`);
+    } catch (err: any) {
+      console.error("Failed to approve kaiwai request:", err);
+      alert('⚠️ 承認処理に失敗しました: ' + err.message);
+    }
+  };
+
+  const handleRejectKaiwaiRequest = async (request: any) => {
+    try {
+      const reason = window.prompt(`「${request.name}」界隈の申請を却下する理由を入力してください：`);
+      if (reason === null) return;
+      const cleanReason = reason.trim() || '内容が類似の既存カテゴリと重複している、あるいは審査ガイドラインに基づき具体的な日常現象として分類しづらいため。';
+
+      // 1. Update request status
+      await updateDoc(doc(db, 'kaiwai_requests', request.id), {
+        status: 'rejected',
+        rejectionReason: cleanReason
+      });
+
+      // 2. Send enhanced notification and rationale details
+      const content = `⚠️ 【現象界隈 審査非承認のお知らせ】\n\nあなたが提案した現象界隈「${request.name}」につきまして、今回の申請は誠に残念ながら【承認見送り（却下）】となりました。\n\n【提案した界隈カテゴリ】\n${request.name}界隈\n\n【申請時の説明・創設理由】\n${request.description || '（なし）'}\n\n【非承認となった具体的な理由】\n${cleanReason}\n\n※内容や表記を見直していただくことで、再度申請を行うことができます。あなたの面白い日常現象の発見と再挑戦をお待ちしております。🛸`;
+
+      await addDoc(collection(db, 'admin_messages'), {
+        recipientId: request.creatorId,
+        senderId: 'admin_root',
+        content: content,
+        createdAt: serverTimestamp(),
+        read: false,
+        type: 'system'
+      });
+
+      // 3. Auto-generate detailed audit log
+      await addDoc(collection(db, 'kaiwai_request_logs'), {
+        requestId: request.id,
+        kaiwaiName: request.name,
+        description: request.description || '',
+        creatorId: request.creatorId,
+        creatorName: request.creatorName,
+        creatorPostsCount: request.creatorPostsCount || 0,
+        status: 'rejected',
+        adminComment: cleanReason,
+        processedAt: serverTimestamp(),
+        processedBy: auth.currentUser?.email || auth.currentUser?.uid || 'admin_user'
+      });
+
+      alert(`⚠️ 申請を却下し、詳細理由を盛り込んだ却下メッセージの送信、および監査ログの自動生成が完了しました。`);
+    } catch (err: any) {
+      console.error("Failed to reject kaiwai request:", err);
       alert('⚠️ 却下処理に失敗しました: ' + err.message);
     }
   };
@@ -7681,6 +8009,12 @@ function AdminPanel({
                 className={cn("px-4 py-1.5 rounded-full text-xs font-bold transition-all", tab === 'jse_creations' ? "bg-orange-500 text-white" : "text-orange-300 hover:bg-orange-50")}
               >
                 JSE上場審査 📈
+              </button>
+              <button 
+                onClick={() => setTab('kaiwai_requests')}
+                className={cn("px-4 py-1.5 rounded-full text-xs font-bold transition-all", tab === 'kaiwai_requests' ? "bg-orange-500 text-white" : "text-orange-300 hover:bg-orange-50")}
+              >
+                界隈申請審査 🪐
               </button>
               {auth.currentUser?.email === 'kuailitengben@gmail.com' && (
                 <button 
@@ -9831,6 +10165,154 @@ function AdminPanel({
                 )}
               </div>
             </div>
+          ) : tab === 'kaiwai_requests' ? (
+            <div className="space-y-6">
+              <div className="flex justify-between items-center bg-orange-950/20 p-4.5 rounded-[22px] border border-orange-500/15 text-left">
+                <div>
+                  <h3 className="text-sm font-extrabold text-amber-300">🪐 現象「界隈」作成申請審査</h3>
+                  <p className="text-[10px] text-orange-200 mt-1">
+                    ユーザーより提案された新しい現象カテゴリ（界隈）の申請を審査します。すでに類似名があるか、十分具体的で共感を呼ぶ日常現象かどうかチェックのうえ、承認・却下を選択してください。
+                  </p>
+                </div>
+                <div className="bg-orange-500 text-white font-extrabold text-[10px] px-3 py-1 rounded-full text-right">
+                  未処理件数: {kaiwaiRequests.filter(r => r.status === 'pending').length}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 text-left">
+                {kaiwaiRequests.map((req) => {
+                  const isPending = req.status === 'pending';
+                  const isApproved = req.status === 'approved';
+                  return (
+                    <div 
+                      key={req.id} 
+                      className={cn(
+                        "p-5 rounded-3xl border transition flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-orange-950/10",
+                        isPending ? "border-amber-450 bg-amber-500/5" : isApproved ? "border-emerald-500/30 bg-emerald-550/5" : "border-stone-800 bg-stone-900/40"
+                      )}
+                    >
+                      <div className="space-y-2 flex-grow text-left">
+                        <div className="flex items-center gap-2.5">
+                          <span className="text-xl p-2 bg-black/20 rounded-xl">🪐</span>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h4 className="text-sm font-black text-amber-250 font-sans">{req.name}界隈</h4>
+                              <span className="text-[9px] uppercase tracking-wider bg-orange-400 text-orange-950 px-2.5 py-0.5 rounded-full font-bold">
+                                界隈カテゴリ申請
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="text-[11px] text-stone-200 bg-black/15 p-3 rounded-2xl border border-white/5 space-y-1 text-left">
+                          <p className="font-bold text-amber-200/90">📖 この界隈の説明:</p>
+                          <p className="leading-relaxed whitespace-pre-wrap font-sans">{req.description || '説明がありません。'}</p>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[9.5px] font-bold text-orange-300">
+                          <span>👤 申請者: <strong className="text-white">{req.creatorName || '匿名'}</strong></span>
+                          <span>🆔 申請者ID: <code className="text-stone-400 select-all">{req.creatorId}</code></span>
+                          <span>📝 投稿数実績: <span className="text-amber-300 font-extrabold">{req.creatorPostsCount || 0} 件</span></span>
+                          <span>📅 申請日時: <span className="text-stone-400">{req.createdAt?.toDate ? req.createdAt.toDate().toLocaleString() : '不明'}</span></span>
+                        </div>
+
+                        {req.rejectionReason && (
+                          <div className="text-[10px] text-red-400 font-bold mt-2 bg-red-500/15 p-2 rounded-xl border border-red-500/25 max-w-xl">
+                            ❌ 却下理由: {req.rejectionReason}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
+                        {isPending ? (
+                          <>
+                            <button
+                              onClick={() => handleApproveKaiwaiRequest(req)}
+                              className="px-4 py-2 bg-emerald-500 hover:bg-emerald-650 active:scale-95 text-white text-[10.5px] font-black rounded-xl transition shadow-lg cursor-pointer"
+                            >
+                              承認 ✅
+                            </button>
+                            <button
+                              onClick={() => handleRejectKaiwaiRequest(req)}
+                              className="px-4 py-2 bg-red-600 hover:bg-red-700 active:scale-95 text-white text-[10.5px] font-black rounded-xl transition shadow-lg cursor-pointer"
+                            >
+                              却下 ❌
+                            </button>
+                          </>
+                        ) : (
+                          <span className={cn(
+                            "px-3 py-1 text-[10px] font-black rounded-full select-none",
+                            isApproved ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/20" : "bg-zinc-800 text-zinc-500"
+                          )}>
+                            {isApproved ? '承認済み・作成済み' : '却下済み'}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {kaiwaiRequests.length === 0 && (
+                  <div className="text-center py-16 text-slate-450 space-y-2">
+                    <span className="text-4xl">🪐</span>
+                    <p className="text-xs font-bold font-mono">現在、新しい界隈作成申請はありません。</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Detailed Logs Display */}
+              {kaiwaiRequestLogs.length > 0 && (
+                <div className="mt-8 pt-8 border-t border-white/10 space-y-4">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">📜</span>
+                    <h3 className="text-xs font-black text-white uppercase tracking-wider">界隈申請 審査・通知ログ履歴 (自動生成ログ)</h3>
+                    <span className="text-[9px] bg-amber-500/10 text-amber-300 border border-amber-500/20 px-2 py-0.5 rounded-md font-bold">
+                      永続ログ: {kaiwaiRequestLogs.length}件
+                    </span>
+                  </div>
+
+                  <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1">
+                    {kaiwaiRequestLogs.map((log) => {
+                      const isApproved = log.status === 'approved';
+                      return (
+                        <div key={log.id} className="p-4 rounded-2xl bg-black/30 border border-white/5 text-xs space-y-2 text-left">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2 font-bold font-sans">
+                              <span className="text-amber-250 font-black">{log.kaiwaiName}界隈</span>
+                              <span className={cn(
+                                "px-2 py-0.5 text-[8.5px] font-black rounded-full uppercase tracking-wider",
+                                isApproved ? "bg-emerald-550/10 text-emerald-300 border border-emerald-500/20" : "bg-red-500/10 text-red-300 border border-red-500/20"
+                              )}>
+                                {isApproved ? '承認 (APPROVED)' : '却下 (REJECTED)'}
+                              </span>
+                            </div>
+                            <span className="text-[9px] text-stone-500 font-mono">
+                              {log.processedAt?.toDate ? log.processedAt.toDate().toLocaleString() : '不明'}
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-[10.5px]">
+                            <div>
+                              <p className="font-bold text-stone-400">📖 申請時の理由・説明:</p>
+                              <p className="text-stone-200 mt-0.5 bg-black/10 p-2 rounded-lg line-clamp-3 whitespace-pre-wrap font-sans">{log.description || '(説明なし)'}</p>
+                            </div>
+                            <div>
+                              <p className="font-bold text-stone-400">{isApproved ? '💬 運営コメント・お祝い:' : '❌ 却下理由:'}</p>
+                              <p className="text-stone-200 mt-0.5 bg-black/10 p-2 rounded-lg line-clamp-3 whitespace-pre-wrap font-sans">{log.adminComment}</p>
+                            </div>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-x-4 text-[9px] text-stone-500 pt-1 border-t border-white/5">
+                            <span>👤 申請者: <span className="text-stone-300 font-semibold">{log.creatorName || '名無し'}</span> (<code className="select-all opacity-80">{log.creatorId}</code>)</span>
+                            <span>👑 審査担当: <span className="text-stone-300 font-semibold">{log.processedBy || '管理者'}</span></span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
           ) : (
             <div className="space-y-6">
               <h3 className="text-sm font-bold text-orange-300 uppercase tracking-widest text-center">サービス統計</h3>
@@ -10319,8 +10801,12 @@ function AuthModal({ onClose, onViewChange }: { onClose: () => void; onViewChang
       await signInWithGoogle();
       onClose();
     } catch (err: any) {
+      console.error('Google login error detail:', err);
       if (err.code !== 'auth/popup-closed-by-user') {
-        setError('Googleログインに失敗しました。');
+        setError(`Googleログインに失敗しました (${err.code || err.message})。
+
+💡 AI Studioのプレビュー画面（iframe内）でテストしている場合、ブラウザのセキュリティ制限やサードパーティ製Cookieブロック等により、ログインポップアップが遮断されることがあります。
+その場合は、画面右上にある「新しいタブで開く」アイコンからアプリを別タブで直接開いて起動し直すか、現在のプレビューのまま「匿名ユーザー（ゲスト）としてログイン」をご利用ください！`);
       }
     } finally {
       setLoading(false);

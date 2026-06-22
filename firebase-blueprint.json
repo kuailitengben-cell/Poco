@@ -442,6 +442,35 @@
         "minCreationCost": { "type": "number" }
       },
       "required": ["minCreationCost"]
+    },
+    "Kaiwai": {
+      "title": "Kaiwai",
+      "description": "An approved phenomenon category (Kaiwai) for citizens to catalog experiences",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "creatorId": { "type": "string" },
+        "creatorName": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "description", "creatorId", "status", "createdAt"]
+    },
+    "KaiwaiRequest": {
+      "title": "KaiwaiRequest",
+      "description": "A user-submitted application to establish a new phenomenon category",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "creatorId": { "type": "string" },
+        "creatorName": { "type": "string" },
+        "creatorPostsCount": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "description", "creatorId", "status", "createdAt"]
     }
   },
   "firestore": {
@@ -548,6 +577,18 @@
     "/jse_config/{configId}": {
       "schema": "JseConfig",
       "description": "JSE parameters"
+    },
+    "/kaiwais/{kaiwaiId}": {
+      "schema": "Kaiwai",
+      "description": "Approved and listed phenomenon categories"
+    },
+    "/kaiwai_requests/{requestId}": {
+      "schema": "KaiwaiRequest",
+      "description": "User applications to create new categories"
+    },
+    "/kaiwai_follows/{followId}": {
+      "schema": "object",
+      "description": "User's followed phenomenon category records"
     }
   }
 }

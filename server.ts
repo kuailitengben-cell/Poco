@@ -10,24 +10,32 @@ import { getFirestore, FieldValue } from "firebase-admin/firestore";
 
 dotenv.config();
 
-// Initialize Firebase Admin securely using local credentials or config
-let projectId = "involuted-aura-807pf";
-let firestoreDatabaseId = "ai-studio-bbb466ec-d3c9-4c86-afe5-402bb0588ae0";
+// Initialize Firebase Admin securely prioritizing process.env environment variables
+let projectId = process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID || "";
+let firestoreDatabaseId = process.env.VITE_FIREBASE_FIRESTORE_DATABASE_ID || process.env.FIREBASE_DATABASE_ID || "";
 
 try {
   const configPath = path.join(process.cwd(), "firebase-applet-config.json");
   if (fs.existsSync(configPath)) {
     const configRaw = fs.readFileSync(configPath, "utf-8");
     const parsedConfig = JSON.parse(configRaw);
-    if (parsedConfig.projectId) {
+    if (!projectId && parsedConfig.projectId) {
       projectId = parsedConfig.projectId;
     }
-    if (parsedConfig.firestoreDatabaseId) {
+    if (!firestoreDatabaseId && parsedConfig.firestoreDatabaseId) {
       firestoreDatabaseId = parsedConfig.firestoreDatabaseId;
     }
   }
 } catch (configErr) {
   console.warn("Failed to read firebase-applet-config.json for admin initialization:", configErr);
+}
+
+// Global hardcoded defaults as last-resort fallback
+if (!projectId) {
+  projectId = "involuted-aura-807pf";
+}
+if (!firestoreDatabaseId) {
+  firestoreDatabaseId = "ai-studio-bbb466ec-d3c9-4c86-afe5-402bb0588ae0";
 }
 
 const adminApps = getApps();
@@ -829,6 +837,48 @@ Return ONLY the raw question text, no explanation or formatting or quotes.`;
       }
     });
 
+    app.post("/api/suggest-tags", async (req, res) => {
+      try {
+        const { title, content, availableTags } = req.body;
+        if (!title || !content || !Array.isArray(availableTags)) {
+          return res.status(400).json({ error: "Missing title, content, or availableTags" });
+        }
+
+        if (availableTags.length === 0) {
+          return res.json({ suggestions: [] });
+        }
+
+        const tagsListStr = availableTags.map(t => `"${t}"`).join(", ");
+
+        const response = await ai.models.generateContent({
+          model: "gemini-2.5-flash",
+          contents: `You are an expert at analyzing daily life observations (地味な日常の現象) and categorizing them.
+Based on the following custom observation categories (KAIWANs):
+[${tagsListStr}]
+
+And the user's post content:
+Title: "${title}"
+Content: "${content}"
+
+Select up to 3 categories from the provided list that are most relevant to the post.
+Your answer MUST be a raw JSON array containing ONLY the selected categories, exactly matching the strings in the list. Do not include any other markdown formatting or code blocks outside of the brackets.
+Example output: ["学校", "コンビニ", "一人暮らし"]`
+        });
+
+        const text = response.text || "[]";
+        const jsonMatch = text.match(/\[.*\]/s);
+        const suggestions = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
+
+        // Ensure suggestions are part of the original tags
+        const validSuggestions = suggestions.filter((s: string) => availableTags.includes(s));
+
+        res.json({ suggestions: validSuggestions });
+      } catch (error) {
+        console.error("Gemini Suggest Tags Error:", error);
+        res.status(500).json({ error: "Failed to suggest tags" });
+      }
+    });
+
     app.post("/api/analyze-post-stock", async (req, res) => {
       try {
         const { title, content } = req.body;
@@ -1025,7 +1075,7 @@ Sitemap: https://${host}/sitemap.xml
       try {
         const host = req.get("host");
         const baseUrl = `https://${host}`;
-        const scenesUrl = `https://firestore.googleapis.com/v1/projects/involuted-aura-807pf/databases/ai-studio-bbb466ec-d3c9-4c86-afe5-402bb0588ae0/documents/scenes?pageSize=200`;
+        const scenesUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/${firestoreDatabaseId}/documents/scenes?pageSize=200`;
         
         let urls = [
           `<loc>${baseUrl}/</loc>`,
@@ -1069,7 +1119,7 @@ Sitemap: https://${host}/sitemap.xml
     app.get("/post/:id", async (req, res) => {
       try {
         const postId = req.params.id;
-        const postUrl = `https://firestore.googleapis.com/v1/projects/involuted-aura-807pf/databases/ai-studio-bbb466ec-d3c9-4c86-afe5-402bb0588ae0/documents/scenes/${postId}`;
+        const postUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/${firestoreDatabaseId}/documents/scenes/${postId}`;
         
         let title = "地味っち | 地味に共感するSNS";
         let desc = "日々の地味な出来事、小さなこだわり、どうでもいい日常を投稿して『地味な共感』を分かち合う、最高に優しいコミュニティSNS。";

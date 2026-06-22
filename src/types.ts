@@ -21,6 +21,7 @@ export interface Scene {
   excavationsCount?: number; // 発掘回数
   sashiireCount?: number; // 差し入れ回数
   kairanAmount?: number; // 回覧板コイン量
+  observationTags?: string[]; // 観測タグ (KAIWAN) list (1-3)
 }
 
 export interface Follow {
