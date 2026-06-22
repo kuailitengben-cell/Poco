@@ -9,7 +9,7 @@ import {
   updateProfile,
   signInAnonymously
 } from 'firebase/auth';
-import { initializeFirestore, memoryLocalCache } from 'firebase/firestore';
+import { getFirestore } from 'firebase/firestore';
 import firebaseConfigDefault from '../../firebase-applet-config.json';
 
 const env = (import.meta as any).env || {};
@@ -31,14 +31,8 @@ const databaseId = firebaseConfig.firestoreDatabaseId && firebaseConfig.firestor
   : undefined;
 
 export const db = databaseId 
-  ? initializeFirestore(app, {
-      experimentalForceLongPolling: true,
-      localCache: memoryLocalCache(),
-    }, databaseId)
-  : initializeFirestore(app, {
-      experimentalForceLongPolling: true,
-      localCache: memoryLocalCache(),
-    });
+  ? getFirestore(app, databaseId)
+  : getFirestore(app);
 
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();

@@ -2952,7 +2952,7 @@ export default function App() {
                 </div>
               </div>
               <button onClick={() => handleOpenProfile(user.uid)}>
-                <img src={userProfile?.photoURL || user.photoURL || ''} alt="" className="w-8 h-8 rounded-full border border-orange-100 ring-2 ring-transparent hover:ring-orange-200 transition-all" />
+                <img src={userProfile?.photoURL || user.photoURL || undefined} alt="" className="w-8 h-8 rounded-full border border-orange-100 ring-2 ring-transparent hover:ring-orange-200 transition-all" />
               </button>
             </div>
           ) : (
@@ -2986,7 +2986,7 @@ export default function App() {
               className="active:scale-95 transition-transform shrink-0"
               title={t("マイページ", "My Page")}
             >
-              <img src={userProfile?.photoURL || user.photoURL || ''} alt="" className="w-7 h-7 rounded-full border border-orange-100" />
+              <img src={userProfile?.photoURL || user.photoURL || undefined} alt="" className="w-7 h-7 rounded-full border border-orange-100" />
             </button>
           ) : (
             <button 
@@ -3358,7 +3358,7 @@ export default function App() {
                 {user ? (
                   <div className="flex flex-col items-center text-center">
                     <img 
-                      src={userProfile?.photoURL || user.photoURL || ''} 
+                      src={userProfile?.photoURL || user.photoURL || undefined} 
                       alt="" 
                       className="w-16 h-16 rounded-full border-2 border-orange-100 shadow-md mb-3"
                     />
