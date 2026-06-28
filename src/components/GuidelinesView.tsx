@@ -124,8 +124,7 @@ export default function GuidelinesView({ onBack, isAdmin }: GuidelinesViewProps)
           }
         }
       } catch (err) {
-        console.error("Error loading guidelines:", err);
-        showToast("ガイドラインデータの読み込みに失敗しました。", "error");
+        console.warn("Using local pre-configured fallback for guidelines:", err);
       } finally {
         setLoading(false);
       }

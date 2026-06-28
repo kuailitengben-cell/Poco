@@ -14,6 +14,17 @@ dotenv.config();
 let projectId = process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID || "";
 let firestoreDatabaseId = process.env.VITE_FIREBASE_FIRESTORE_DATABASE_ID || process.env.FIREBASE_DATABASE_ID || "";
 
+function isValidFirestoreDbId(id: string | undefined | null): boolean {
+  if (!id) return false;
+  if (id === '(default)') return true;
+  return /^[a-z][a-z0-9-]{3,62}$/.test(id);
+}
+
+// If the environment-provided ID is invalid (e.g. Google Analytics ID 'G-...'), reset it
+if (!isValidFirestoreDbId(firestoreDatabaseId)) {
+  firestoreDatabaseId = "";
+}
+
 try {
   const configPath = path.join(process.cwd(), "firebase-applet-config.json");
   if (fs.existsSync(configPath)) {
@@ -22,7 +33,7 @@ try {
     if (!projectId && parsedConfig.projectId) {
       projectId = parsedConfig.projectId;
     }
-    if (!firestoreDatabaseId && parsedConfig.firestoreDatabaseId) {
+    if (!firestoreDatabaseId && parsedConfig.firestoreDatabaseId && isValidFirestoreDbId(parsedConfig.firestoreDatabaseId)) {
       firestoreDatabaseId = parsedConfig.firestoreDatabaseId;
     }
   }

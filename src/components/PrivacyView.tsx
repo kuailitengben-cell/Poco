@@ -218,8 +218,7 @@ export default function PrivacyView({ onBack, isAdmin }: PrivacyViewProps) {
           }
         }
       } catch (err) {
-        console.error("Error loading privacy policy:", err);
-        showToast("データの読み込みに失敗しました。", "error");
+        console.warn("Using local pre-configured fallback for privacy policy:", err);
       } finally {
         setLoading(false);
       }

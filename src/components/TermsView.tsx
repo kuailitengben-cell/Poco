@@ -241,8 +241,7 @@ export default function TermsView({ onBack, isAdmin }: TermsViewProps) {
           }
         }
       } catch (err) {
-        console.error("Error loading terms:", err);
-        showToast("利用規約データの読み込みに失敗しました。", "error");
+        console.warn("Using local pre-configured fallback for terms:", err);
       } finally {
         setLoading(false);
       }

@@ -1174,7 +1174,7 @@ export default function App() {
             await new Promise((resolve) => setTimeout(resolve, 1500));
           } else {
             if (error instanceof Error && error.message.includes('the client is offline')) {
-              console.error("Please check your Firebase configuration. Server is unreachable or browser is offline.");
+              console.warn("Please check your Firebase configuration. Server is unreachable or browser is offline.");
             } else {
               console.warn("Firebase test connection other error:", error);
             }
@@ -1199,27 +1199,31 @@ export default function App() {
 
     // Bootstrap admin if this is the specific user
     const bootstrapAdmin = async () => {
-      if (user.email === 'kuailitengben@gmail.com') {
-        const adminRef = doc(db, 'admins', user.uid);
-        const adminSnap = await getDoc(adminRef);
-        if (!adminSnap.exists()) {
-          await setDoc(adminRef, { email: user.email, name: 'Poco[管理者]' });
-        }
-      } else if (user.email === 'nakashi198006130423@gmail.com') {
-        // Check if adminRevoked is true in profile before auto-promoting
-        const profileRef = doc(db, 'profiles', user.uid);
-        const profileSnap = await getDoc(profileRef);
-        if (profileSnap.exists()) {
-          if (profileSnap.data()?.adminRevoked === true) {
-            // Already explicitly revoked by primary admin
-            return;
+      try {
+        if (user.email === 'kuailitengben@gmail.com') {
+          const adminRef = doc(db, 'admins', user.uid);
+          const adminSnap = await getDoc(adminRef);
+          if (!adminSnap.exists()) {
+            await setDoc(adminRef, { email: user.email, name: 'Poco[管理者]' });
+          }
+        } else if (user.email === 'nakashi198006130423@gmail.com') {
+          // Check if adminRevoked is true in profile before auto-promoting
+          const profileRef = doc(db, 'profiles', user.uid);
+          const profileSnap = await getDoc(profileRef);
+          if (profileSnap.exists()) {
+            if (profileSnap.data()?.adminRevoked === true) {
+              // Already explicitly revoked by primary admin
+              return;
+            }
+          }
+          const adminRef = doc(db, 'admins', user.uid);
+          const adminSnap = await getDoc(adminRef);
+          if (!adminSnap.exists()) {
+            await setDoc(adminRef, { email: user.email, name: 'poco' });
           }
         }
-        const adminRef = doc(db, 'admins', user.uid);
-        const adminSnap = await getDoc(adminRef);
-        if (!adminSnap.exists()) {
-          await setDoc(adminRef, { email: user.email, name: 'poco' });
-        }
+      } catch (err) {
+        console.warn("Bootstrap admin failed gracefully (offline mode):", err);
       }
     };
     bootstrapAdmin();
@@ -1241,11 +1245,12 @@ export default function App() {
     // Fetch profile
     const fetchProfile = async () => {
       const profileRef = doc(db, 'profiles', user.uid);
-      const profileSnap = await getDoc(profileRef);
-      const now = serverTimestamp();
-      let finalProfileData: any = {};
+      try {
+        const profileSnap = await getDoc(profileRef);
+        const now = serverTimestamp();
+        let finalProfileData: any = {};
 
-      if (profileSnap.exists()) {
+        if (profileSnap.exists()) {
         const data = profileSnap.data();
         const updateData: any = { lastActiveAt: now };
 
@@ -1502,6 +1507,48 @@ export default function App() {
           console.warn("Real-time profile fallback listener failed:", error);
         });
       }
+      } catch (outerErr: any) {
+        console.warn("Outer profile sync or load failed (operating in resilient offline/local fallback):", outerErr);
+        
+        // Recover profile data from local storage as best as possible so they still have a profile UI!
+        const lsKey = `jimicchi_gacha_v3_${user.uid}`;
+        let localState: any = {};
+        try {
+          const raw = localStorage.getItem(lsKey);
+          if (raw) localState = JSON.parse(raw) || {};
+        } catch (_) {}
+
+        // Set a local profile so they don't see a blank profile
+        setUserProfile({
+          uid: user.uid,
+          displayName: user.displayName || localState.displayName || '名無しさん',
+          photoURL: user.photoURL || `https://api.dicebear.com/7.x/bottts/svg?seed=${user.uid}`,
+          bio: 'よろしくお願いします。(ローカルモード)',
+          hasSeenTutorial: true,
+          coins: localState.coins !== undefined ? localState.coins : 500,
+          shards: localState.shards !== undefined ? localState.shards : 0,
+          jCoins: 5000,
+          unlockedPrefixIds: localState.unlockedPrefixIds || [],
+          unlockedSuffixIds: localState.unlockedSuffixIds || [],
+          unlockedBadgeIds: localState.unlockedBadgeIds || [],
+        } as any);
+
+        setProfileSynced(user.uid, true);
+
+        // Still set up the real-time listener so it connects once we are back online!
+        try {
+          unsubscribeProfile = onSnapshot(profileRef, (snap) => {
+            if (snap.exists()) {
+              const freshData = snap.data() as Profile;
+              setUserProfile({ uid: user.uid, ...freshData });
+            }
+          }, (error) => {
+            console.warn("Real-time profile listener failed in fallback:", error);
+          });
+        } catch (_) {}
+
+        setGachaRevision(prev => prev + 1);
+      }
     };
 
     // Listen to user's upvotes
@@ -1688,16 +1735,27 @@ export default function App() {
     return () => unsubActiveBoard();
   }, [user, currentTodayStr]);
 
-  // Fetch Scenes
+  // Reset displayLimit when filters change
   useEffect(() => {
     setDisplayLimit(25);
-    let q = query(collection(db, 'scenes'), orderBy(sortMode === 'latest' ? 'createdAt' : 'upvotes', sortMode === 'latest' ? 'desc' : 'asc'));
+  }, [sortMode, selectedTag, searchQuery, selectedCategory]);
+
+  // Fetch Scenes with dynamic query limit
+  useEffect(() => {
+    let q = query(
+      collection(db, 'scenes'), 
+      orderBy(sortMode === 'latest' ? 'createdAt' : 'upvotes', sortMode === 'latest' ? 'desc' : 'asc'),
+      limit(displayLimit + 10)
+    );
     
     // Firestore only supports one array-contains per query.
-    // If we want search AND tags AND sorting, it gets complex.
-    // We'll fetch all and filter client-side for keywords, but use tags for server-side.
     if (selectedTag) {
-      q = query(collection(db, 'scenes'), where('hashtags', 'array-contains', selectedTag), orderBy(sortMode === 'latest' ? 'createdAt' : 'upvotes', sortMode === 'latest' ? 'desc' : 'asc'));
+      q = query(
+        collection(db, 'scenes'), 
+        where('hashtags', 'array-contains', selectedTag), 
+        orderBy(sortMode === 'latest' ? 'createdAt' : 'upvotes', sortMode === 'latest' ? 'desc' : 'asc'),
+        limit(displayLimit + 10)
+      );
     }
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -1730,11 +1788,11 @@ export default function App() {
     });
 
     return () => unsubscribe();
-  }, [sortMode, selectedTag, searchQuery, selectedCategory]);
+  }, [displayLimit, sortMode, selectedTag, searchQuery, selectedCategory]);
 
-  // Fetch allScenes database collection in real-time for dynamic Leaderboard Rankings
+  // Fetch allScenes database collection in real-time for dynamic Leaderboard Rankings (capped to latest 150)
   useEffect(() => {
-    const q = query(collection(db, 'scenes'));
+    const q = query(collection(db, 'scenes'), orderBy('createdAt', 'desc'), limit(150));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data: Scene[] = [];
       snapshot.forEach((doc) => {
@@ -2263,7 +2321,18 @@ export default function App() {
     const upvoteId = `${sceneId}_${user.uid}`;
     const upvoteRef = doc(db, 'upvotes', upvoteId);
     
-    const upvoteSnap = await getDocFromServer(upvoteRef);
+    let upvoteSnap;
+    try {
+      upvoteSnap = await getDocFromServer(upvoteRef);
+    } catch (err) {
+      console.warn("getDocFromServer failed in handleUpvote (offline/local mode fallback):", err);
+      try {
+        upvoteSnap = await getDoc(upvoteRef);
+      } catch (innerErr) {
+        console.warn("getDoc failed in handleUpvote, assuming upvote does not exist locally:", innerErr);
+        upvoteSnap = { exists: () => false, data: () => null };
+      }
+    }
     const sceneRef = doc(db, 'scenes', sceneId);
 
     try {
@@ -3744,6 +3813,7 @@ export default function App() {
               setSubmitContent('');
             }} 
             user={user}
+            profile={userProfile}
             setAiLoading={setAiLoading}
             aiLoading={aiLoading}
             onTitleContentChange={(title, content) => {
@@ -4532,6 +4602,7 @@ const SceneCard: React.FC<{
 function SubmitModal({ 
   onClose, 
   user, 
+  profile,
   setAiLoading, 
   aiLoading, 
   onPostSuccess,
@@ -4539,6 +4610,7 @@ function SubmitModal({
 }: { 
   onClose: () => void, 
   user: User | null, 
+  profile: Profile | null,
   setAiLoading: (v: boolean) => void, 
   aiLoading: boolean, 
   onPostSuccess?: () => void,
@@ -4664,9 +4736,18 @@ function SubmitModal({
     }
 
     try {
-      const profileRef = doc(db, 'profiles', user.uid);
-      const profileSnap = await getDoc(profileRef);
-      const profileData = profileSnap.data();
+      let profileData = profile;
+      if (!profileData) {
+        try {
+          const profileRef = doc(db, 'profiles', user.uid);
+          const profileSnap = await getDoc(profileRef);
+          if (profileSnap.exists()) {
+            profileData = profileSnap.data() as Profile;
+          }
+        } catch (profileErr) {
+          console.warn("Failed to fetch profile during scene submission (operating in resilient offline/local mode):", profileErr);
+        }
+      }
 
       const hashtags = (title + ' ' + content).match(/#[a-z0-9_]+/gi)?.map(t => t.slice(1).toLowerCase()) || [];
 
@@ -5784,23 +5865,35 @@ function ProfileView({
     });
 
     const checkAdmin = async () => {
-      const snap = await getDoc(doc(db, 'admins', uid));
-      setOtherAdmin(snap.exists());
+      try {
+        const snap = await getDoc(doc(db, 'admins', uid));
+        setOtherAdmin(snap.exists());
+      } catch (e) {
+        console.warn("Failed to check admin status for viewed profile:", e);
+        setOtherAdmin(false);
+      }
     };
 
-    const q = query(collection(db, 'scenes'), orderBy('createdAt', 'desc'));
+    const q = query(collection(db, 'scenes'), where('authorId', '==', uid));
     const unsubscribeScenes = onSnapshot(q, (snapshot) => {
       const sceneData: Scene[] = [];
       snapshot.forEach((doc) => {
         const data = doc.data() as Scene;
-        if (data.authorId === uid) {
-          sceneData.push({ id: doc.id, ...data } as Scene);
-        }
+        sceneData.push({ id: doc.id, ...data } as Scene);
       });
+      
+      // Sort client-side to avoid needing a Firestore composite index
+      sceneData.sort((a, b) => {
+        const aTime = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt instanceof Date ? a.createdAt.getTime() : 0);
+        const bTime = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt instanceof Date ? b.createdAt.getTime() : 0);
+        return bTime - aTime;
+      });
+
       setScenes(sceneData);
       setLoading(false);
     }, (error) => {
-       handleFirestoreError(error, OperationType.LIST, `profile_scenes/${uid}`);
+       console.warn("Profile scenes subscription error (likely offline or missing database):", error);
+       setLoading(false);
     });
 
     if (isAdmin) checkAdmin();
